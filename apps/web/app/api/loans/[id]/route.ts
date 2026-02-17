@@ -57,9 +57,24 @@ export async function PATCH(
         loan = repayLoan(id, txHash);
         break;
 
-      case "liquidate":
+      case "liquidate": {
+        // Verify the caller is the lender
+        const loanToLiquidate = getLoan(id);
+        if (!loanToLiquidate) {
+          return NextResponse.json(
+            { error: "Loan not found" },
+            { status: 404 }
+          );
+        }
+        if (!caller || caller.toLowerCase() !== loanToLiquidate.lender?.toLowerCase()) {
+          return NextResponse.json(
+            { error: "Only the lender can liquidate this loan" },
+            { status: 403 }
+          );
+        }
         loan = liquidateLoan(id, txHash);
         break;
+      }
 
       case "cancel": {
         // Verify the caller is the borrower

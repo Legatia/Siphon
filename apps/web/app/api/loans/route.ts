@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { shardId, borrower, principal, interestBps, duration, collateralValue, txHash } = body;
+    const { id, shardId, borrower, principal, interestBps, duration, collateralValue, txHash } = body;
 
     if (!shardId || !borrower || !principal || interestBps === undefined || !duration) {
       return NextResponse.json(
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const loan = createLoan({
+      id,
       shardId,
       borrower,
       principal,

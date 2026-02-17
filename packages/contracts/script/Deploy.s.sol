@@ -62,6 +62,16 @@ contract Deploy is Script {
         valuation.approveKeeper(vm.addr(deployerPrivateKey));
         console.log("Deployer approved as attestation keeper");
 
+        // Approve arbiter as keeper if ARBITER_ADDRESS is set
+        // (the web attest route uses ARBITER_PRIVATE_KEY which may differ from deployer)
+        address arbiterAddress = vm.envOr("ARBITER_ADDRESS", address(0));
+        if (arbiterAddress != address(0)) {
+            valuation.approveKeeper(arbiterAddress);
+            console.log("Arbiter approved as attestation keeper:", arbiterAddress);
+        } else {
+            console.log("WARNING: ARBITER_ADDRESS not set. If your arbiter differs from deployer, attestations will revert.");
+        }
+
         vm.stopBroadcast();
 
         // --- Print .env snippet ---

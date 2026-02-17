@@ -4,6 +4,7 @@ import type { Loan, Shard, ShardAttestation, LoanListing } from "@siphon/core";
 import crypto from "crypto";
 
 export interface CreateLoanParams {
+  id?: string;
   shardId: string;
   borrower: string;
   principal: string;
@@ -15,7 +16,7 @@ export interface CreateLoanParams {
 
 export function createLoan(params: CreateLoanParams): Loan {
   const db = getDb();
-  const id = crypto.randomUUID();
+  const id = params.id ?? crypto.randomUUID();
   const now = Date.now();
 
   db.prepare(

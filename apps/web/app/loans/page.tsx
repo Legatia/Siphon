@@ -23,6 +23,7 @@ import {
   idToBytes32,
   LOAN_VAULT_ABI,
   LOAN_VAULT_ADDRESS,
+  SHARD_REGISTRY_ABI,
   SHARD_REGISTRY_LOCK_ABI,
   SHARD_REGISTRY_ADDRESS,
   SHARD_VALUATION_ABI,
@@ -160,7 +161,7 @@ function LoanCard({
         await fetch(`/api/loans/${loan.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "liquidate", txHash }),
+          body: JSON.stringify({ action: "liquidate", caller: address, txHash }),
         });
       } else if (action === "cancel") {
         const hash = await walletClient.writeContract({
@@ -311,7 +312,68 @@ function CreateLoanForm({
   const [interestBps, setInterestBps] = useState("500");
   const [durationDays, setDurationDays] = useState("30");
   const [creating, setCreating] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [needsRegistration, setNeedsRegistration] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check on-chain registration when shard selection changes
+  useEffect(() => {
+    if (!shardId) {
+      setNeedsRegistration(false);
+      return;
+    }
+    (async () => {
+      try {
+        const shardIdBytes = idToBytes32(shardId);
+        const owner = await publicClient.readContract({
+          address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+          abi: SHARD_REGISTRY_ABI,
+          functionName: "getOwner",
+          args: [shardIdBytes],
+        });
+        setNeedsRegistration(
+          !owner || owner === "0x0000000000000000000000000000000000000000"
+        );
+      } catch {
+        // Contract not deployed or call failed — assume not registered
+        setNeedsRegistration(true);
+      }
+    })();
+  }, [shardId]);
+
+  async function handleRegister() {
+    setRegistering(true);
+    setError(null);
+    try {
+      const walletClient = getWalletClient();
+      if (!walletClient) {
+        setError("Connect your wallet first");
+        return;
+      }
+      const selectedShard = shards.find((s) => s.id === shardId);
+      if (!selectedShard) {
+        setError("Shard not found");
+        return;
+      }
+      const shardIdBytes = idToBytes32(shardId);
+      const genomeHash = selectedShard.genomeHash as `0x${string}`;
+
+      const hash = await walletClient.writeContract({
+        account: address as `0x${string}`,
+        address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+        abi: SHARD_REGISTRY_ABI,
+        functionName: "register",
+        args: [shardIdBytes, genomeHash],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      setNeedsRegistration(false);
+    } catch (err: any) {
+      console.error("On-chain registration failed:", err);
+      setError(err?.shortMessage || err?.message || "Registration failed");
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -478,13 +540,32 @@ function CreateLoanForm({
             : ""}
         </div>
 
+        {needsRegistration && shardId && (
+          <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-1 text-xs text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              This shard is not registered on-chain. Registration is required before it can be used as loan collateral.
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              onClick={handleRegister}
+              disabled={registering}
+            >
+              {registering ? "Registering (confirm in wallet)..." : "Register On-Chain"}
+            </Button>
+          </div>
+        )}
+
         {error && (
           <div className="text-xs text-red-400">{error}</div>
         )}
 
         <Button
           type="submit"
-          disabled={creating || !shardId}
+          disabled={creating || !shardId || needsRegistration}
           className="w-full bg-siphon-teal text-midnight hover:bg-siphon-teal/80"
         >
           {creating ? "Creating (confirm in wallet)..." : "Create Loan Listing"}

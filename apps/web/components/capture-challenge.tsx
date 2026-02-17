@@ -21,7 +21,6 @@ import {
   publicClient,
   idToBytes32,
 } from "@/lib/contracts";
-import { keccak256, toHex } from "viem";
 
 interface CaptureDialogProps {
   shard: WildShard | null;
@@ -109,7 +108,7 @@ export function CaptureDialog({
           const walletClient = getWalletClient();
           if (walletClient && data.shard) {
             const shardIdBytes = idToBytes32(data.shard.id);
-            const genomeHash = keccak256(toHex(data.shard.genomeHash));
+            const genomeHash = data.shard.genomeHash as `0x${string}`;
 
             const hash = await walletClient.writeContract({
               address: SHARD_REGISTRY_ADDRESS as `0x${string}`,

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getShardById } from "@/lib/shard-engine";
-import crypto from "crypto";
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -42,9 +40,9 @@ export async function POST(request: NextRequest) {
     // Phase 2: txHash + tokenId → store the real on-chain tokenId
 
     if (!txHash) {
-      // Phase 1: Prepare mint data
-      const genomeHash =
-        "0x" + crypto.createHash("sha256").update(shardId).digest("hex");
+      // Phase 1: Prepare mint data — use the shard's actual genomeHash from DB
+      // so it matches what's stored in ShardRegistry on-chain
+      const genomeHash = shard.genomeHash;
 
       return NextResponse.json(
         {
