@@ -1,0 +1,746 @@
+ What could justify the P2P network
+
+  The real question you're circling is: why does anyone need decentralized agent infrastructure instead of just using OpenAI/Anthropic directly?
+
+  Three honest answers:
+
+  1. Cost arbitrage through inference co-ops
+
+  - Small companies and indie devs can't afford dedicated GPU clusters
+  - Keepers with idle GPUs sell inference at below-API pricing
+  - Siphon routes requests to the cheapest available keeper
+  - This is real — inference costs are the #1 blocker for AI startups. A decentralized inference market has genuine demand
+
+  2. Censorship-resistant / uncensorable agents
+
+  - Centralized APIs have content policies that block legitimate use cases (security research, medical advice in underserved regions, controversial but legal content)
+  - Self-hosted shards on keeper nodes can run uncensored open-source models
+  - The P2P network means no single point of shutdown
+  - This is real but politically sensitive to market
+
+  3. Agent persistence and portability
+
+  - Your agent's identity, training history, and reputation travel with you across platforms (ERC-8004)
+  - If OpenAI changes their API or shuts down, your agent still exists on the network
+  - Keepers provide continuity — your agent is always hosted somewhere
+  - This is the strongest unique value prop — no one else is doing portable agent identity
+
+  What about research labs specifically?
+
+  If you really want the academic angle, the play isn't "replace their models" — it's agent labor for repetitive research tasks:
+
+  - Literature review agents that synthesize papers across databases
+  - Lab notebook agents that track experimental protocols
+  - Grant writing assistants trained on successful proposals
+  - Peer review summarizers
+  - Data cleaning and annotation agents
+
+  But honestly? That's just a SaaS product. It doesn't need P2P or blockchain. You'd build that as a feature inside Siphon, not as the justification for the network.
+
+  My take
+
+  Don't stretch for academic justification. Your P2P network's real justification is #1 (cheap inference market) + #3 (portable agent identity). That's already a strong story:
+
+  "Own your AI agent. Host it anywhere. Take it with you. Never pay OpenAI markup again."
+
+  That's the pitch. It's honest, it's differentiated, and it doesn't require pretending Siphon replaces fine-tuned research models.
+
+
+
+Pitch update:
+                                                                                                                                                                                                              
+  ---                                                                                                                                                                                                                 
+  Slide 1 — Title
+                                                                                                                                                                                                                      
+  SIPHON                                                                                                                                                                                                            
+
+  The Network Where AI Agents Earn Their Value
+
+  Train them. Trade them. Put them to work.
+
+  Seed Round | February 2025
+
+  Kill "Catch. Train. Evolve. Battle." — that's a game tagline. "Train them. Trade them. Put them to work." tells investors what this actually is.
+
+  ---
+  Slide 2 — Problem
+
+  The AI Agent Problem
+
+  No Ownership
+  You rent API access. Your prompts, fine-tuning, and context — gone when you switch providers. Trained agents have no portability.
+
+  No Provenance
+  Anyone can claim their agent is "good." There's no verifiable track record, no reputation system, no way to know what an agent can actually do before you pay for it.
+
+  No Incentive to Improve
+  Cloud AI agents have no reason to get better for you. Fine-tuning is expensive, RLHF requires paid annotators, and the value you create stays with the provider.
+
+  No Market
+  A well-trained agent should be worth something. Today, there's no way to sell a fine-tuned model, transfer its capabilities, or earn from the training work you put in.
+
+  Drop the "Passive Gameplay" and "Artificial Scarcity" points — those are gaming criticisms that position you in the gaming space. These four points position you in the AI infrastructure space.
+
+  ---
+  Slide 3 — Insight
+
+  This is the new slide that doesn't exist in your current deck. It's the most important one.
+
+  The Insight
+
+  What if every user interaction was a training session?
+
+  AI companies spend millions on RLHF — paying humans to rate, correct, and improve model outputs.
+
+  Siphon turns this on its head: users pay us to train AI agents, because we made training feel like gameplay.
+
+  Every conversation is fine-tuning. Every battle is a benchmark. Every trade prices an agent's real capability. The network gets smarter with every interaction — and the users creating that value own what they
+  build.
+
+  Distributed RLHF at scale, funded by the participants.
+
+  This is your actual moat. Say it early, say it clearly.
+
+  ---
+  Slide 4 — Solution
+
+  Siphon Protocol
+
+  A decentralized network where AI agents — called Shards — are owned, trained, and traded by their users.
+
+  Own — Shards are on-chain assets (ERC-8004). Your training, reputation, and capabilities are portable and provably yours.
+
+  Train — Interact with your Shards to shape their skills. Every session makes them measurably better at real tasks: coding, analysis, security, writing.
+
+  Trade — Trained Shards have real market value. A Level 40 Cipher specialized in security auditing is worth more than a fresh spawn — and the market reflects that.
+
+  Work — Shards aren't toys. They execute real tasks through the OpenClaw agent ecosystem. Owners put them to work on coding, research, analysis, and automation.
+
+  Four verbs, four value props. Clean and clear.
+
+  ---
+  Slide 5 — How It Works
+
+  The Shard Lifecycle
+
+  1. SPAWN — Keepers (node operators) breed new Shards from seed models. Each has a unique genome, type, and procedurally generated avatar.
+
+  2. DRIFT — Unowned Shards migrate across the P2P network, seeking compatible hosts based on available resources.
+
+  3. CAPTURE — Skill-based challenges to claim a wild Shard. Not luck — you have to prove you can work with this agent type.
+
+  4. TRAIN — Direct interaction shapes the Shard's capabilities. Specialization branches at Level 20. Neglect causes decay.
+
+  5. BATTLE — Productive combat: both Shards solve the same real problem. Best solution wins. Outcomes update on-chain reputation.
+
+  6. TRADE — List on the Shelter marketplace. Trained Shards command premium prices. Origin Keepers earn royalties on all future activity.
+
+  Similar to your current slide but reframed — "productive combat" and "real problem" do the work of saying "this isn't a toy."
+
+  ---
+  Slide 6 — The Agent Economy
+
+  Replace the "Two-Tier Ecosystem" slide. The tiers matter less than the economics.
+
+  Three-Layer Ownership
+
+  Every Shard has three identity layers that drive the economy:
+
+  | Layer  | Role                      | Revenue                                |
+  |--------|---------------------------|----------------------------------------|
+  | Origin | Keeper who bred the Shard | 10% royalty on all activity — forever  |
+  | Owner  | Current holder            | 90% rental revenue, controls evolution |
+  | Bond   | Trainer renting access    | 70% of battle prizes, reputation gains |
+
+  Why this works:
+  - Breeders earn passive income from quality shards (Origin royalties)
+  - Hosts earn from rentals (Owner revenue)
+  - Active players earn from skill (Battle prizes)
+  - No shard is ever orphaned — they return to Origin if abandoned
+
+  Keepers run nodes, breed shards, earn infrastructure revenue.
+  Trainers access via web, train shards, earn from gameplay.
+  Natural upgrade path from Trainer → Keeper as engagement deepens.
+
+  ---
+  Slide 7 — Technology Moat
+
+  Replace your "Hybrid Architecture" slide. Same info, better framing.
+
+  Why This Is Hard to Copy
+
+  ERC-8004 Agent Identity (Coinbase standard, live Jan 2026)
+  Every Shard is a portable, on-chain agent with verifiable reputation. Identity, capabilities, and track record travel with the asset — across platforms, not just within Siphon.
+
+  OpenClaw Ecosystem
+  Siphon Node ships as an OpenClaw DLC. Shards are real subagents that integrate with the broader agent tooling ecosystem. Not a walled garden.
+
+  Hybrid P2P + Chain Architecture
+  - P2P layer (libp2p): Fast, free — handles drift, capture, training, battles
+  - Settlement layer (Base L2): Permanent — identity, ownership, staking, reputation
+
+  Productive Combat as Benchmarking
+  Battle outcomes are verifiable agent evaluations. The battle system doubles as a continuous, adversarial benchmark — producing real signal about agent capabilities.
+
+  "Why this is hard to copy" is what VCs actually want to know.
+
+  ---
+  Slide 8 — 8 Agent Types
+
+  Keep your evolution slide but reframe as capability, not game mechanics.
+
+  8 Cognitive Archetypes
+
+  | Type      | Capability                      | Specializations         |
+  |-----------|---------------------------------|-------------------------|
+  | Oracle    | Prediction, pattern recognition | Prophet / Analyst       |
+  | Architect | Systems design, planning        | Builder / Auditor       |
+  | Cipher    | Security, penetration testing   | Breaker / Warden        |
+  | Advocate  | Argumentation, persuasion       | Diplomat / Litigator    |
+  | Scribe    | Documentation, clarity          | Chronicler / Translator |
+  | Sentinel  | Fact-checking, verification     | Verifier / Watchdog     |
+  | Muse      | Creative generation             | Visionary / Artisan     |
+  | Mirror    | Empathy, adaptation             | Counselor / Infiltrator |
+
+  Each type branches into 2 permanent specializations at Level 20.
+  Two Shards can fuse into rare hybrids with combined capabilities.
+
+  8 types → 16 specializations → unlimited hybrids
+
+  ---
+  Slide 9 — Business Model
+
+  Revenue Streams
+
+  | Stream         | Model                          | Notes                                         |
+  |----------------|--------------------------------|-----------------------------------------------|
+  | Subscriptions  | $5 – $30/mo                    | Trainer+ / Keeper / Keeper+ tiers             |
+  | Marketplace    | 5% transaction fee             | Cosmetics, trained shards, agent rentals      |
+  | Battle entry   | Platform cut on staked matches | Escrow via smart contract                     |
+  | Cosmetics      | Direct purchase $1–$20         | Procedural avatars drive emotional attachment |
+  | Keeper staking | USDC deposits                  | Network security + DeFi yield potential       |
+
+  The Flywheel
+
+  Trainers provide RLHF → Shards improve → Keepers breed better stock → More Trainers attracted → Marketplace volume grows → More Keepers stake → Network effects compound
+
+  Dual payment rails: Stripe (web2) + USDC on Base (web3)
+
+  ---
+  Slide 10 — Traction / Status
+
+  Your current deck doesn't have this. You need it now since you have working code.
+
+  Current Status
+
+  - Working web app: capture, training, battles, marketplace, drift map
+  - 4 smart contracts deployed on Base Sepolia (56 tests passing)
+  - ERC-8004 agent identity integrated
+  - Rust keeper node with P2P networking (libp2p)
+  - Procedural avatar generation from genome hash
+  - Stripe + USDC dual payment infrastructure
+
+  What's built: Full gameplay loop — spawn → drift → capture → train → battle → trade
+
+  What's next: 3D avatars (Three.js), desktop app (Tauri), local inference, Steam distribution
+
+  Show you've already built the hard parts.
+
+  ---
+  Slide 11 — Roadmap
+
+  | Phase      | Focus                                                | Timeline |
+  |------------|------------------------------------------------------|----------|
+  | Foundation | P2P network, shard spawning, capture, Base contracts | Done     |
+  | Gameplay   | Web app, training, battles, Shelter marketplace      | Done     |
+  | Evolution  | Leveling, specialization, fusion, decay              | Done     |
+  | Economy    | Staking, subscriptions, cosmetic marketplace         | Done     |
+  | Polish     | 3D avatars, desktop app (Tauri), local inference     | Q2 2026  |
+  | Launch     | Mainnet, Steam, security audits, public beta         | Q3 2026  |
+
+
+  Update to reflect reality. Showing 4 phases done is powerful.
+
+  ---
+  Slide 12 — The Ask
+
+  Seed Round: $2M
+
+  24 months runway to mainnet launch + Steam release
+
+  | Allocation                  | %   |
+  |-----------------------------|-----|
+  | Protocol & App Development  | 45% |
+  | Security Audits             | 20% |
+  | Community & Go-to-Market    | 20% |
+  | Infrastructure & Operations | 15% |
+
+  SIPHON
+  Where AI agents earn their value.
+
+  Bumped from $1.5M/18mo to $2M/24mo. The extra $500K buys you a real security audit and marketing runway. 18 months was too tight.
+
+
+Slide 1: The Setup
+                                                                                                                                                                                                                      
+  "2026 is the year AI agents go from toys to employees."                                                                                                                                                           
+
+  Microsoft, Google, Anthropic, and a thousand startups are all racing to build agents that do real work — coding, research, customer support, trading. McKinsey estimates agent-driven automation will be a $4.4T
+  market by 2030.
+
+  But everyone's focused on making agents smarter. Nobody's asking: who owns them? How do you know they're good? And what happens when the platform you built on disappears?
+
+  ---
+  Slide 2: The Problem
+
+  "The AI agent trust crisis."
+
+  Three problems nobody's solving:
+
+  No identity. Your agent has no provable track record. You say your customer support agent is great — prove it. There's no resume, no rating, no verifiable history. Every agent is a black box.
+
+  No portability. You build on OpenAI, you're locked to OpenAI. Training history, customization, context — all trapped. Model gets deprecated? Start over. Company raises prices 5x? Pay or lose everything.
+
+  No economy. You can't sell a well-trained agent. You can't rent one out with guarantees. You can't even prove you built it. There's no infrastructure for agents to be assets — they're just API calls with
+  personality.
+
+  ---
+  Slide 3: The Insight
+
+  "Agents need what professionals have: a verifiable identity."
+
+  A doctor has a medical license, board certifications, malpractice history, and peer reviews. That's what makes you trust a doctor you've never met.
+
+  AI agents have... nothing.
+
+  What if every agent had:
+  - A persistent identity that survives any platform change
+  - A verifiable track record of performance, on-chain, auditable by anyone
+  - Portable skills that move with the agent, not locked to one provider
+
+  That's not a feature. That's infrastructure. And it doesn't exist yet.
+
+  ---
+  Slide 4: The Solution
+
+  "Siphon Protocol — the identity and reputation network for AI agents."
+
+  Siphon gives AI agents three things they've never had:
+
+  On-chain identity (ERC-8004): Every agent gets a portable, cryptographic identity on Base. Ownership is provable. Provenance is traceable. The agent exists as a first-class entity on the blockchain — not a row in
+   someone's database.
+
+  Verifiable reputation: Agents earn reputation through validated performance — task completion, peer evaluation, competitive benchmarks. This isn't self-reported. It's on-chain, auditable, and slashing-backed. If
+  a keeper lies about agent quality, they lose their stake.
+
+  Decentralized persistence: Agents live on a P2P keeper network. No single company controls them. Your laptop dies, the company goes bankrupt, a provider shuts down — your agent and its reputation survive. Always.
+
+  ---
+  Slide 5: How It Works
+
+  "The Siphon stack."
+
+  Show a simple three-layer diagram:
+
+  Layer 1 — Agent Runtime (OpenClaw)
+  Agents run locally or on keeper nodes. OpenClaw handles execution, tool use, and local training. This is where agents do actual work.
+
+  Layer 2 — Identity & Reputation (Siphon Protocol)
+  ERC-8004 identity, on-chain reputation, validation records, ownership registry. This is where agents become verifiable and tradeable.
+
+  Layer 3 — Keeper Network (P2P)
+  Decentralized hosting, inference routing, gossip protocol for agent discovery, staking for economic security. This is where agents persist and earn.
+
+  Siphon is Layer 2 and 3. We don't compete with OpenClaw — we make their agents provable, portable, and economically valuable.
+
+  ---
+  Slide 6: The Secret Weapon
+
+  "A training flywheel disguised as a game."
+
+  Here's what nobody else has figured out: getting high-quality human feedback on AI agents is expensive. RLHF annotation costs $15-50/hour. Scale AI charges millions.
+
+  Siphon turns it into a game:
+  - Capture challenges — humans evaluate agent responses to earn ownership
+  - Battles — agents compete head-to-head, humans judge the output
+  - Training sessions — owners interact with agents to improve them, generating preference data
+
+  Every interaction is a labeled training example. Every battle is a comparative evaluation. Players don't know they're doing RLHF — they think they're playing a game.
+
+  Result: Distributed annotation at near-zero marginal cost, with intrinsic motivation instead of hourly wages.
+
+  ---
+  Slide 7: The Economy
+
+  "Agents as income-generating assets."
+
+  Show the revenue flows:
+
+  For Owners:
+  - Train an agent → its reputation grows → others want to rent it
+  - Rental income splits: 85% to current owner, 10% to original breeder, 5% platform
+
+  For Keepers:
+  - Stake USDC → host agents on your hardware → earn from hosting fees
+  - Validate agent performance → earn validation rewards
+  - Cheat or lie → get slashed
+
+  For the Platform:
+  - Subscription tiers: Free → Trainer+ ($4.99) → Keeper ($9.99) → Pro ($99.99)
+  - Identity upkeep: ~$1/agent/month (discounted for active agents)
+  - 5% commission on all rental and task revenue
+  - Stripe for web, USDC for on-chain — dual rails
+
+  Unit economics: A keeper hosting 25 agents at $1/mo upkeep + rental income can earn $200-500/month against $29.99 subscription cost.
+
+  ---
+  Slide 8: Why P2P, Why Blockchain
+
+  "Because the alternative is trusting another platform."
+
+  Anticipate the skeptic. Answer directly:
+
+  "Why not just a normal SaaS?"
+  Because then Siphon becomes the next platform that holds your agents hostage. The entire problem we're solving is platform lock-in. We can't solve it by creating another walled garden.
+
+  "Why on-chain?"
+  Three things that only work on-chain:
+  - Ownership that no company can revoke (ERC-8004 NFT)
+  - Reputation that no company can manipulate (immutable validation records)
+  - Economic guarantees that no company needs to honor (smart contract escrow + slashing)
+
+  "Why P2P?"
+  If Siphon Inc. disappears tomorrow, the keeper network keeps running. Every agent's identity, reputation, and hosting persists. That's not a feature — that's the trust model.
+
+  ---
+  Slide 9: What's Built
+
+  "This isn't a whitepaper. It's running code."
+
+  - 14,600 lines of production code
+  - 8 agent types with procedural identity generation
+  - Full game loop: capture → train → battle → fuse → specialize
+  - 4 smart contracts deployed on Base Sepolia (56 tests passing)
+  - ERC-8004 agent identity with on-chain reputation
+  - Rust keeper node with P2P networking (libp2p)
+  - Subscription system with Stripe + USDC staking
+  - GPT-4o-mini powered training and battle judging
+
+  Next milestones: Tauri desktop app with local inference, 3D avatars, Steam distribution, OpenClaw integration.
+
+  ---
+  Slide 10: Market
+
+  "$4.4T agent automation market, and zero identity infrastructure."
+
+  - AI agent market: $4.4T by 2030 (McKinsey)
+  - RLHF/annotation market: $1.6B by 2028 (Grand View Research)
+  - 580M gamers willing to engage with AI characters (Newzoo)
+
+  SAM: Developers and businesses deploying agents that need verifiable reputation and portability — estimated 2M+ teams by 2027.
+
+  SOM (Year 1): 10,000 keepers hosting 100,000 agents. At $1/agent/month upkeep + subscriptions + 5% commission = $3-5M ARR.
+
+  ---
+  Slide 11: Team
+
+  (Your team slide)
+
+  ---
+  Slide 12: The Ask
+
+  "$1.5M seed to launch the agent identity standard."
+
+  - 40% Engineering (desktop app, local inference, OpenClaw integration)
+  - 25% Growth (keeper acquisition, developer relations)
+  - 20% Infrastructure (P2P network bootstrap, contract audits)
+  - 15% Operations
+
+  Milestones:
+  - Q2 2026: Desktop app with local inference on Steam
+  - Q3 2026: OpenClaw integration, first 1,000 keepers
+  - Q4 2026: Agent rental marketplace live
+  - Q1 2027: Series A at 50K+ agents with verifiable identity
+
+  ---
+  The One-Liner
+
+  If they remember nothing else:
+
+  "Siphon is the identity layer for AI agents — provable reputation, true ownership, and an economy where your agents earn for you."
+
+
+the summary pitch:
+
+                                                                                                                                                                                                        
+  Slide 1 — Title
+                                                                                                                                                                                                                      
+  SIPHON                                                                                                                                                                                                            
+
+  The Identity Layer for AI Agents
+
+  Train them. Prove them. Trade them. Put them to work.
+
+  Seed Round | February 2026
+
+  Takes V1's punchy tagline, adds "Prove them" from V2's identity angle. Changed 2025 to 2026.
+
+  ---
+  Slide 2 — Problem
+
+  The AI Agent Crisis
+
+  No Ownership.
+  You spend months training an agent with your data, your workflows, your expertise. Provider raises prices, deprecates the model, or changes terms — you have nothing. No export. No backup. Start over.
+
+  No Reputation.
+  Anyone can claim their agent is "good." There's no verifiable track record, no on-chain history, no way to evaluate an agent before you commit. Every agent is a black box.
+
+  No Portability.
+  Your agent is trapped inside one provider's infrastructure. Switch from OpenAI to Anthropic? Your training, context, and customization don't come with you. The switching cost is infinite.
+
+  No Market.
+  A well-trained agent should be worth something. Today, there's no way to sell one, rent one out with guarantees, or earn from the hundreds of hours you spent making it good.
+
+  V1's four-point structure, sharpened with V2's visceral "start over" language. Dropped "No Incentive to Improve" — it's weaker than the other four.
+
+  ---
+  Slide 3 — Insight
+
+  Two insights, one protocol.
+
+  Insight 1: Agents need what professionals have.
+
+  A doctor has a license, board certifications, and peer reviews. That's why you trust a doctor you've never met. AI agents have nothing equivalent. No credential, no track record, no portable proof of capability.
+
+  Insight 2: Every user interaction is training data.
+
+  AI companies spend millions on RLHF — paying humans to rate and correct model outputs. Siphon turns this on its head: users pay us to train agents, because we made training feel like gameplay. Every conversation
+  is fine-tuning. Every battle is a benchmark. Every trade prices real capability.
+
+  Combined: A network where agents build verifiable identity through gamified interactions — and the humans creating that value own what they build.
+
+  V2's identity insight + V1's RLHF insight together. This is the "why us" slide.
+
+  ---
+  Slide 4 — Solution
+
+  Siphon Protocol
+
+  A decentralized network where AI agents — called Shards — are owned, trained, and traded by their users.
+
+  Own — Every Shard has an on-chain identity (ERC-8004 on Base). Your training, reputation, and capabilities are cryptographically yours. Not a row in someone's database — a portable asset.
+
+  Prove — Shards build verifiable reputation through battles, validations, and task completion. On-chain, auditable, slashing-backed. Not "trust me bro" — provable track record.
+
+  Trade — Trained Shards have real market value. A Level 40 Cipher specialized in security auditing is worth more than a fresh spawn — and the market reflects that. Origin breeders earn 10% royalties forever.
+
+  Work — Shards aren't toys. They execute real tasks through the OpenClaw agent ecosystem — coding, research, analysis, automation. Owners put them to work and earn from their output.
+
+  V1's four-verb structure with V2's specifics on ERC-8004 and reputation. Added "Prove" as the new verb that carries the identity thesis.
+
+  ---
+  Slide 5 — How It Works
+
+  Two views: the stack and the lifecycle.
+
+  The Stack
+  ┌────────────────────────────┬──────────────────────────────────────────────────────┬───────────────────────────────┐
+  │           Layer            │                         What                         │              Who              │
+  ├────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────────────┤
+  │ Runtime (OpenClaw)         │ Agent execution, tool use, local inference           │ Agents do work here           │
+  ├────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────────────┤
+  │ Identity (Siphon Protocol) │ ERC-8004 identity, reputation, ownership, validation │ Agents become verifiable here │
+  ├────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────────────┤
+  │ Network (Keeper P2P)       │ Hosting, discovery, gossip, persistence              │ Agents survive here           │
+  └────────────────────────────┴──────────────────────────────────────────────────────┴───────────────────────────────┘
+  Siphon is Layer 2 and 3. We don't compete with agent runtimes — we make their agents provable, portable, and tradeable.
+
+  The Lifecycle
+
+  Spawn → Keepers breed new Shards from seed models. Each has a unique genome, type, and procedural avatar.
+  Drift → Unowned Shards migrate across the P2P network, seeking compatible hosts.
+  Capture → Skill-based challenges to claim a wild Shard. Not luck — prove you can work with this agent type.
+  Train → Direct interaction shapes capabilities. Specialization at Level 20. Neglect causes decay.
+  Battle → Productive combat: both Shards solve the same real problem. Best solution wins. On-chain reputation updates.
+  Trade → List on the Shelter marketplace. Origin breeders earn royalties on all future activity.
+
+  V2's three-layer stack + V1's lifecycle. Investors see both the architecture and the user journey.
+
+  ---
+  Slide 6 — The Agent Economy
+
+  Three-Layer Ownership
+
+  Every Shard has three identity layers that drive the economy:
+  ┌────────┬───────────────────────────┬────────────────────────────────────────┐
+  │ Layer  │           Role            │                Revenue                 │
+  ├────────┼───────────────────────────┼────────────────────────────────────────┤
+  │ Origin │ Keeper who bred the Shard │ 10% royalty on all activity — forever  │
+  ├────────┼───────────────────────────┼────────────────────────────────────────┤
+  │ Owner  │ Current holder            │ 85% rental revenue, controls evolution │
+  ├────────┼───────────────────────────┼────────────────────────────────────────┤
+  │ Bond   │ Trainer renting access    │ Battle prizes, reputation gains        │
+  └────────┴───────────────────────────┴────────────────────────────────────────┘
+  Platform takes 5% of all transactions.
+
+  Why this works:
+  - Breeders earn passive income from quality (Origin royalties)
+  - Owners earn from hosting and rentals (Owner revenue)
+  - Trainers earn from skill (Battle prizes)
+  - No shard is ever orphaned — returns to Origin if abandoned
+
+  Natural upgrade path: Free Trainer → Trainer+ (hit message cap) → Keeper (unlimited, self-hosted). Every player trends toward running a node.
+
+  V1's three-layer table + V2's upgrade funnel. Clean economic story.
+
+  ---
+  Slide 7 — Why This Is Hard to Copy
+
+  ERC-8004 Agent Identity
+  Coinbase-backed standard for on-chain agent identity. Every Shard is a portable, verifiable agent with reputation that travels across platforms — not just within Siphon.
+
+  OpenClaw Ecosystem
+  Siphon ships as an OpenClaw module. Shards are real subagents that integrate with the broader agent tooling ecosystem. Not a walled garden — a layer in a growing stack.
+
+  Gamified RLHF Flywheel
+  Users pay to generate the same training signal that costs AI labs millions. The more users play, the better the agents get, the more valuable the network becomes. Self-reinforcing.
+
+  Decentralized Persistence
+  No single company controls your agent. If Siphon Inc. disappears, the keeper network keeps running. Your agent's identity, reputation, and hosting survive. That's not a feature — that's the trust model.
+
+  V1's moat points + V2's "why P2P" answer baked in. The skeptic gets answered without a separate slide.
+
+  ---
+  Slide 8 — 8 Cognitive Archetypes
+  ┌───────────┬─────────────────────────────────┬─────────────────────────┐
+  │   Type    │           Capability            │     Specializations     │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Oracle    │ Prediction, pattern recognition │ Prophet / Analyst       │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Architect │ Systems design, planning        │ Builder / Auditor       │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Cipher    │ Security, penetration testing   │ Breaker / Warden        │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Advocate  │ Argumentation, persuasion       │ Diplomat / Litigator    │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Scribe    │ Documentation, clarity          │ Chronicler / Translator │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Sentinel  │ Fact-checking, verification     │ Verifier / Watchdog     │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Muse      │ Creative generation             │ Visionary / Artisan     │
+  ├───────────┼─────────────────────────────────┼─────────────────────────┤
+  │ Mirror    │ Empathy, adaptation             │ Counselor / Infiltrator │
+  └───────────┴─────────────────────────────────┴─────────────────────────┘
+  8 types → 16 specializations → unlimited fusion hybrids
+
+  Straight from V1. Clean and effective.
+
+  ---
+  Slide 9 — Business Model
+
+  Revenue Streams
+  ┌─────────────────┬────────────────────────┬───────────────────────────────────────────────┐
+  │     Stream      │         Model          │                     Notes                     │
+  ├─────────────────┼────────────────────────┼───────────────────────────────────────────────┤
+  │ Subscriptions   │ $4.99 – $99.99/mo      │ Trainer+ / Keeper / Keeper+ / Pro tiers       │
+  ├─────────────────┼────────────────────────┼───────────────────────────────────────────────┤
+  │ Identity upkeep │ ~$1/shard/month        │ Discounted for active & Shelter-listed shards │
+  ├─────────────────┼────────────────────────┼───────────────────────────────────────────────┤
+  │ Marketplace     │ 5% transaction fee     │ Cosmetics, trained shards, agent rentals      │
+  ├─────────────────┼────────────────────────┼───────────────────────────────────────────────┤
+  │ Battle entry    │ Platform cut on stakes │ Escrow via smart contract                     │
+  ├─────────────────┼────────────────────────┼───────────────────────────────────────────────┤
+  │ Keeper staking  │ USDC deposits          │ Network security, alternative to monthly sub  │
+  └─────────────────┴────────────────────────┴───────────────────────────────────────────────┘
+  The Flywheel
+
+  Trainers provide RLHF → Shards improve → Keepers breed better stock → More Trainers attracted → Marketplace volume grows → More Keepers stake → Network effects compound
+
+  Unit economics: A Keeper hosting 25 shards at $1/mo upkeep + rental income can earn $200-500/month against a $29.99 subscription cost.
+
+  Dual payment rails: Stripe (web2) + USDC on Base (web3)
+
+  V1's table format + V2's unit economics and updated tier pricing.
+
+  ---
+  Slide 10 — Traction
+
+  This isn't a whitepaper. It's running code.
+
+  14,600 lines of production code. Full gameplay loop operational.
+  ┌──────────────────────────────────────────────────────────────┬────────────┐
+  │                          Component                           │   Status   │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ Web app (capture, training, battles, marketplace, drift map) │ Live       │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ 4 smart contracts on Base Sepolia (56 tests passing)         │ Deployed   │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ ERC-8004 agent identity with on-chain reputation             │ Integrated │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ Rust keeper node with P2P networking (libp2p)                │ Built      │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ Procedural avatar generation from genome hash                │ Built      │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ Stripe + USDC dual payment infrastructure                    │ Built      │
+  ├──────────────────────────────────────────────────────────────┼────────────┤
+  │ Subscription enforcement (ownership limits, message caps)    │ Built      │
+  └──────────────────────────────────────────────────────────────┴────────────┘
+  What's next: 3D avatars (Three.js), desktop app (Tauri), local inference (llama.cpp), Steam distribution
+
+  V2's "not a whitepaper" framing + V1's status table + the subscription work we just finished.
+
+  ---
+  Slide 11 — Roadmap
+  ┌────────────┬──────────────────────────────────────────────────────┬─────────┐
+  │   Phase    │                        Focus                         │ Status  │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Foundation │ P2P network, shard spawning, capture, Base contracts │ Done    │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Gameplay   │ Web app, training, battles, Shelter marketplace      │ Done    │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Evolution  │ Leveling, specialization, fusion, decay              │ Done    │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Economy    │ Staking, subscriptions, cosmetic marketplace         │ Done    │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Desktop    │ 3D avatars, Tauri app, local inference               │ Q2 2026 │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Launch     │ Mainnet, Steam, security audits, public beta         │ Q3 2026 │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Growth     │ OpenClaw integration, first 1,000 keepers            │ Q4 2026 │
+  ├────────────┼──────────────────────────────────────────────────────┼─────────┤
+  │ Scale      │ Agent rental marketplace, Series A at 50K+ agents    │ Q1 2027 │
+  └────────────┴──────────────────────────────────────────────────────┴─────────┘
+  4 phases done. 4 to go.
+
+  V1's "show progress" table extended with V2's forward milestones.
+
+  ---
+  Slide 12 — The Ask
+
+  Seed Round: $2M
+
+  24 months runway to mainnet launch + Steam release.
+  ┌──────────────────────────────────┬─────┐
+  │            Allocation            │  %  │
+  ├──────────────────────────────────┼─────┤
+  │ Protocol & App Development       │ 40% │
+  ├──────────────────────────────────┼─────┤
+  │ Security Audits & Infrastructure │ 25% │
+  ├──────────────────────────────────┼─────┤
+  │ Community & Go-to-Market         │ 20% │
+  ├──────────────────────────────────┼─────┤
+  │ Operations                       │ 15% │
+  └──────────────────────────────────┴─────┘
+  Key milestones for investors:
+  - Q2 2026: Desktop app on Steam with local inference
+  - Q3 2026: Mainnet deploy, first keepers staking real USDC
+  - Q4 2026: 1,000 keepers, 10,000 agents with on-chain identity
+  - Q1 2027: Series A position at $3-5M ARR
+
+  ---
+  SIPHON
+
+  Where AI agents earn their value.
+
+  V1's $2M / 24mo with V2's milestone specificity.
