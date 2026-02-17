@@ -148,6 +148,16 @@ export const BATTLE_SETTLEMENT_ABI = [
   },
   {
     type: "function",
+    name: "resolveDispute",
+    inputs: [
+      { name: "battleId", type: "bytes32" },
+      { name: "winner", type: "address" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "getBattle",
     inputs: [{ name: "battleId", type: "bytes32" }],
     outputs: [
@@ -165,6 +175,25 @@ export const BATTLE_SETTLEMENT_ABI = [
       },
     ],
     stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "BattleCreated",
+    inputs: [
+      { name: "battleId", type: "bytes32", indexed: true },
+      { name: "challenger", type: "address", indexed: true },
+      { name: "defender", type: "address", indexed: true },
+      { name: "stake", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "BattleSettled",
+    inputs: [
+      { name: "battleId", type: "bytes32", indexed: true },
+      { name: "winner", type: "address", indexed: true },
+      { name: "payout", type: "uint256", indexed: false },
+    ],
   },
 ] as const;
 
@@ -478,6 +507,333 @@ export const SHARD_VALUATION_ADDRESS =
 export const LOAN_VAULT_ADDRESS =
   (process.env.NEXT_PUBLIC_LOAN_VAULT_ADDRESS as `0x${string}`) ??
   "0x0000000000000000000000000000000000000000";
+
+export const SUBSCRIPTION_STAKING_ADDRESS =
+  (process.env.NEXT_PUBLIC_SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`) ??
+  "0x0000000000000000000000000000000000000000";
+
+export const SHARD_MARKETPLACE_ADDRESS =
+  (process.env.NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS as `0x${string}`) ??
+  "0x0000000000000000000000000000000000000000";
+
+export const SWARM_REGISTRY_ADDRESS =
+  (process.env.NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS as `0x${string}`) ??
+  "0x0000000000000000000000000000000000000000";
+
+export const BOUNTY_BOARD_ADDRESS =
+  (process.env.NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS as `0x${string}`) ??
+  "0x0000000000000000000000000000000000000000";
+
+// USDC on Base Sepolia
+export const USDC_ADDRESS =
+  (process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`) ??
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+// --- USDC (minimal ERC20) ---
+export const USDC_ABI = [
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+// --- SubscriptionStaking ---
+export const SUBSCRIPTION_STAKING_ABI = [
+  {
+    type: "function",
+    name: "stake",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "unstake",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getTier",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getStake",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "amount", type: "uint256" },
+          { name: "tier", type: "uint8" },
+          { name: "stakedAt", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "Staked",
+    inputs: [
+      { name: "user", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "tier", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Unstaked",
+    inputs: [
+      { name: "user", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+// --- ShardMarketplace ---
+export const SHARD_MARKETPLACE_ABI = [
+  {
+    type: "function",
+    name: "listShard",
+    inputs: [
+      { name: "shardId", type: "bytes32" },
+      { name: "price", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "buyShard",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "cancelListing",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getListing",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "seller", type: "address" },
+          { name: "price", type: "uint256" },
+          { name: "listedAt", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "ShardListed",
+    inputs: [
+      { name: "shardId", type: "bytes32", indexed: true },
+      { name: "seller", type: "address", indexed: true },
+      { name: "price", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "ShardSold",
+    inputs: [
+      { name: "shardId", type: "bytes32", indexed: true },
+      { name: "seller", type: "address", indexed: true },
+      { name: "buyer", type: "address", indexed: true },
+      { name: "price", type: "uint256", indexed: false },
+      { name: "fee", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "ListingCancelled",
+    inputs: [
+      { name: "shardId", type: "bytes32", indexed: true },
+      { name: "seller", type: "address", indexed: true },
+    ],
+  },
+] as const;
+
+// --- SwarmRegistry ---
+export const SWARM_REGISTRY_ABI = [
+  {
+    type: "function",
+    name: "createSwarm",
+    inputs: [
+      { name: "swarmId", type: "bytes32" },
+      { name: "shardIds", type: "bytes32[]" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "dissolveSwarm",
+    inputs: [{ name: "swarmId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getSwarm",
+    inputs: [{ name: "swarmId", type: "bytes32" }],
+    outputs: [
+      { name: "owner", type: "address" },
+      { name: "shardIds", type: "bytes32[]" },
+      { name: "createdAt", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "SwarmCreated",
+    inputs: [
+      { name: "swarmId", type: "bytes32", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "size", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "SwarmDissolved",
+    inputs: [
+      { name: "swarmId", type: "bytes32", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+    ],
+  },
+] as const;
+
+// --- BountyBoard ---
+export const BOUNTY_BOARD_ABI = [
+  {
+    type: "function",
+    name: "postBounty",
+    inputs: [
+      { name: "bountyId", type: "bytes32" },
+      { name: "description", type: "string" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "claimBounty",
+    inputs: [
+      { name: "bountyId", type: "bytes32" },
+      { name: "shardOrSwarmId", type: "bytes32" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "completeBounty",
+    inputs: [{ name: "bountyId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "cancelBounty",
+    inputs: [{ name: "bountyId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "disputeBounty",
+    inputs: [{ name: "bountyId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getBounty",
+    inputs: [{ name: "bountyId", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "bountyId", type: "bytes32" },
+          { name: "poster", type: "address" },
+          { name: "claimant", type: "address" },
+          { name: "claimantShardOrSwarmId", type: "bytes32" },
+          { name: "reward", type: "uint256" },
+          { name: "description", type: "string" },
+          { name: "deadline", type: "uint256" },
+          { name: "state", type: "uint8" },
+          { name: "createdAt", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "BountyPosted",
+    inputs: [
+      { name: "bountyId", type: "bytes32", indexed: true },
+      { name: "poster", type: "address", indexed: true },
+      { name: "reward", type: "uint256", indexed: false },
+      { name: "deadline", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "BountyCompleted",
+    inputs: [
+      { name: "bountyId", type: "bytes32", indexed: true },
+      { name: "claimant", type: "address", indexed: true },
+      { name: "reward", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "BountyCancelled",
+    inputs: [
+      { name: "bountyId", type: "bytes32", indexed: true },
+      { name: "poster", type: "address", indexed: true },
+      { name: "refund", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
 
 export const publicClient = createPublicClient({
   chain: baseSepolia,

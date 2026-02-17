@@ -11,7 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Sparkles, Shield } from "lucide-react";
+import { ArrowLeft, Sparkles, Shield, Loader2 } from "lucide-react";
+import { useAccount } from "wagmi";
+import {
+  SIPHON_IDENTITY_ABI,
+  SIPHON_IDENTITY_ADDRESS,
+  getWalletClient,
+  publicClient,
+} from "@/lib/contracts";
 import { ShardType, Specialization } from "@siphon/core";
 
 type BadgeVariant = "oracle" | "cipher" | "scribe" | "muse" | "architect" | "advocate" | "sentinel" | "mirror";
@@ -41,6 +48,7 @@ const typeIconMap: Record<ShardType, string> = {
 export default function ShardDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { address } = useAccount();
   const [shard, setShard] = useState<Shard | null>(null);
   const [loading, setLoading] = useState(true);
   const [specDialogOpen, setSpecDialogOpen] = useState(false);
@@ -74,16 +82,63 @@ export default function ShardDetailPage() {
   };
 
   const handleMintAgent = async () => {
-    if (!shard) return;
+    if (!shard || !address) return;
     setMinting(true);
-    const res = await fetch("/api/identity/mint", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shardId: shard.id, ownerId: shard.ownerId }),
-    });
-    const data = await res.json();
-    if (data.shard) setShard(data.shard);
-    setMinting(false);
+    try {
+      // Phase 1: Get genome hash from API
+      const res = await fetch("/api/identity/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shardId: shard.id, ownerId: shard.ownerId }),
+      });
+      const data = await res.json();
+
+      if (!data.needsOnChainMint) {
+        // Already minted or error
+        if (data.shard) setShard(data.shard);
+        return;
+      }
+
+      // Phase 2: Execute on-chain mint via wallet
+      const walletClient = getWalletClient();
+      if (!walletClient) throw new Error("No wallet connected");
+
+      const hash = await walletClient.writeContract({
+        address: SIPHON_IDENTITY_ADDRESS as `0x${string}`,
+        abi: SIPHON_IDENTITY_ABI,
+        functionName: "mintAgent",
+        args: [data.genomeHash as `0x${string}`],
+        account: address,
+      });
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      // Extract tokenId from logs (Transfer event, topic[3] is tokenId)
+      const transferLog = receipt.logs.find(
+        (log) => log.topics.length >= 4
+      );
+      const tokenId = transferLog
+        ? BigInt(transferLog.topics[3]!).toString()
+        : "unknown";
+
+      // Phase 3: Confirm with API
+      const confirmRes = await fetch("/api/identity/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shardId: shard.id,
+          ownerId: shard.ownerId,
+          txHash: hash,
+          tokenId,
+        }),
+      });
+      const confirmData = await confirmRes.json();
+      if (confirmData.shard) setShard(confirmData.shard);
+    } catch (err) {
+      console.error("Mint agent error:", err);
+    } finally {
+      setMinting(false);
+    }
   };
 
   if (loading || !shard) {

@@ -15,7 +15,17 @@ import {
   Star,
   Building2,
   Coins,
+  Loader2,
 } from "lucide-react";
+import { parseUnits } from "viem";
+import {
+  USDC_ABI,
+  USDC_ADDRESS,
+  SUBSCRIPTION_STAKING_ABI,
+  SUBSCRIPTION_STAKING_ADDRESS,
+  getWalletClient,
+  publicClient,
+} from "@/lib/contracts";
 
 const TIER_ICONS: Record<string, React.ReactNode> = {
   free_trainer: <Zap className="h-6 w-6" />,
@@ -124,6 +134,75 @@ export default function SubscribePage() {
       }
     } catch (error) {
       console.error("Portal error:", error);
+    }
+  };
+
+  const [stakingLoading, setStakingLoading] = useState<string | null>(null);
+
+  const handleStake = async (tierKey: string) => {
+    if (!address) return;
+
+    const tierConfig = TIER_PRICES[tierKey];
+    if (!tierConfig || tierConfig.stakeAlternative === 0) return;
+
+    setStakingLoading(tierKey);
+    try {
+      const walletClient = getWalletClient();
+      if (!walletClient) throw new Error("No wallet connected");
+
+      const amount = parseUnits(
+        tierConfig.stakeAlternative.toString(),
+        6
+      ); // USDC has 6 decimals
+
+      // Step 1: Approve USDC transfer
+      const approveHash = await walletClient.writeContract({
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`, amount],
+        account: address,
+      });
+
+      // Wait for approval to confirm
+      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+      // Step 2: Stake USDC
+      const stakeHash = await walletClient.writeContract({
+        address: SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`,
+        abi: SUBSCRIPTION_STAKING_ABI,
+        functionName: "stake",
+        args: [amount],
+        account: address,
+      });
+
+      // Wait for stake to confirm
+      await publicClient.waitForTransactionReceipt({ hash: stakeHash });
+
+      // Step 3: Record stake with API (which verifies on-chain)
+      const res = await fetch("/api/subscriptions/stake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: address,
+          tier: tierKey,
+          txHash: stakeHash,
+          amount: tierConfig.stakeAlternative,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSubscription((prev) => ({
+          ...prev,
+          tier: data.tier,
+          stakeAmount: data.stakeAmount,
+        }));
+      }
+    } catch (error) {
+      console.error("Staking error:", error);
+    } finally {
+      setStakingLoading(null);
     }
   };
 
@@ -292,6 +371,28 @@ export default function SubscribePage() {
                   ) : (
                     <Button variant="outline" className="w-full" disabled>
                       Contact Us
+                    </Button>
+                  )}
+
+                  {/* USDC Stake alternative */}
+                  {hasStake && !isCurrent && isUpgrade && (
+                    <Button
+                      variant="outline"
+                      className="w-full mt-2"
+                      onClick={() => handleStake(tierKey)}
+                      disabled={!!stakingLoading}
+                    >
+                      {stakingLoading === tierKey ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Staking...
+                        </>
+                      ) : (
+                        <>
+                          <Coins className="h-4 w-4 mr-2" />
+                          Stake {tier.stakeAlternative} USDC
+                        </>
+                      )}
                     </Button>
                   )}
                 </CardContent>

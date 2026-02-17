@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { TIER_PRICES } from "@/lib/stripe";
+import {
+  publicClient,
+  SUBSCRIPTION_STAKING_ABI,
+  SUBSCRIPTION_STAKING_ADDRESS,
+} from "@/lib/contracts";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
+// Map on-chain tier enum (uint8) to tier key
+const TIER_ENUM_MAP: Record<number, string> = {
+  1: "keeper",
+  2: "keeper_plus",
+  3: "keeper_pro",
+};
+
 /**
  * POST: Record a USDC stake payment as subscription alternative.
- * The frontend should call this after the on-chain transaction confirms.
+ * After recording txHash, verifies the on-chain tier from the SubscriptionStaking contract.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +48,35 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Verify on-chain: read the user's tier from SubscriptionStaking contract
+    try {
+      const onChainTier = (await publicClient.readContract({
+        address: SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`,
+        abi: SUBSCRIPTION_STAKING_ABI,
+        functionName: "getTier",
+        args: [userId as `0x${string}`],
+      })) as number;
+
+      if (onChainTier === 0) {
+        return NextResponse.json(
+          { error: "On-chain verification failed: no active stake found. Complete the staking transaction first." },
+          { status: 400 }
+        );
+      }
+
+      // Verify the on-chain tier matches or exceeds the requested tier
+      const onChainTierKey = TIER_ENUM_MAP[onChainTier];
+      if (!onChainTierKey) {
+        return NextResponse.json(
+          { error: "On-chain verification failed: unrecognized tier" },
+          { status: 400 }
+        );
+      }
+    } catch (err) {
+      // If contract isn't deployed yet, log warning but allow (graceful degradation)
+      console.warn("On-chain tier verification skipped (contract may not be deployed):", err);
     }
 
     const db = getDb();

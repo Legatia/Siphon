@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
-import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark } from "lucide-react";
+import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Crown } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -14,6 +14,8 @@ const navItems = [
   { href: "/fusion", label: "Fusion", icon: Combine },
   { href: "/loans", label: "Loans", icon: Landmark },
   { href: "/marketplace", label: "Market", icon: ShoppingBag },
+  { href: "/bounties", label: "Bounties", icon: Target },
+  { href: "/subscribe", label: "Subscribe", icon: Crown },
 ];
 
 export function Navbar() {

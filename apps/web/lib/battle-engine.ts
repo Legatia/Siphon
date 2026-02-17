@@ -15,6 +15,42 @@ import {
   type MatchmakingEntry,
 } from "@siphon/core";
 import crypto from "crypto";
+import { createWalletClient, createPublicClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
+import {
+  BATTLE_SETTLEMENT_ABI,
+  BATTLE_SETTLEMENT_ADDRESS,
+  idToBytes32,
+} from "@/lib/contracts";
+
+/**
+ * Settle a staked battle on-chain via the BattleSettlement contract.
+ * Uses the server-side ARBITER_PRIVATE_KEY to call settle().
+ */
+async function settleOnChain(
+  battleIdHex: `0x${string}`,
+  winnerAddress: `0x${string}`
+): Promise<`0x${string}`> {
+  const arbiterKey = process.env.ARBITER_PRIVATE_KEY;
+  if (!arbiterKey) throw new Error("ARBITER_PRIVATE_KEY not configured");
+
+  const account = privateKeyToAccount(arbiterKey as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http(),
+  });
+
+  const hash = await walletClient.writeContract({
+    address: BATTLE_SETTLEMENT_ADDRESS as `0x${string}`,
+    abi: BATTLE_SETTLEMENT_ABI,
+    functionName: "settle",
+    args: [battleIdHex, winnerAddress],
+  });
+
+  return hash;
+}
 
 function battleToRow(battle: Battle) {
   return {
@@ -213,12 +249,32 @@ export async function completeBattle(battleId: string): Promise<Battle> {
     battle.defender.shardId
   );
 
+  // Settle on-chain for staked battles
+  if (battle.stakeAmount > 0 && battle.escrowTxHash) {
+    try {
+      const battleIdHex = idToBytes32(battle.id);
+      // Determine winner address: if draw, send address(0)
+      let winnerAddr: `0x${string}` = "0x0000000000000000000000000000000000000000";
+      if (winnerId === battle.challenger.shardId) {
+        winnerAddr = battle.challenger.keeperId as `0x${string}`;
+      } else if (winnerId === battle.defender.shardId) {
+        winnerAddr = battle.defender.keeperId as `0x${string}`;
+      }
+
+      const txHash = await settleOnChain(battleIdHex, winnerAddr);
+      battle.settlementTxHash = txHash;
+    } catch (err) {
+      console.error("On-chain settlement failed:", err);
+      // Continue with off-chain settlement — don't block the result
+    }
+  }
+
   // Update battle record
   const updatedRow = battleToRow(battle);
   db.prepare(`
     UPDATE battles
     SET status = @status, challenger_json = @challenger_json, defender_json = @defender_json,
-        rounds_json = @rounds_json, winner_id = @winner_id, completed_at = @completed_at
+        rounds_json = @rounds_json, winner_id = @winner_id, settlement_tx_hash = @settlement_tx_hash, completed_at = @completed_at
     WHERE id = @id
   `).run(updatedRow);
 

@@ -77,11 +77,18 @@ pub fn init_db(data_dir: &str) -> SqliteResult<()> {
             completed_at INTEGER
         );
 
+        CREATE TABLE IF NOT EXISTS tracked_loans (
+            loan_id TEXT PRIMARY KEY,
+            state TEXT NOT NULL DEFAULT 'Funded',
+            added_at INTEGER NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_shards_type ON shards(shard_type);
         CREATE INDEX IF NOT EXISTS idx_shards_wild ON shards(is_wild);
         CREATE INDEX IF NOT EXISTS idx_interactions_shard ON interactions(shard_id);
         CREATE INDEX IF NOT EXISTS idx_action_log_shard ON action_log(shard_id);
         CREATE INDEX IF NOT EXISTS idx_action_log_status ON action_log(status);
+        CREATE INDEX IF NOT EXISTS idx_tracked_loans_state ON tracked_loans(state);
         ",
     )?;
 
@@ -477,6 +484,39 @@ pub fn get_action_summary(data_dir: &str, shard_id: &str) -> SqliteResult<(u32, 
     )?;
 
     Ok((total, success, failed))
+}
+
+/// Get all tracked loan IDs with state = 'Funded' for liquidation checks.
+pub fn get_funded_loans(data_dir: &str) -> SqliteResult<Vec<String>> {
+    let conn = open_db(data_dir)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT loan_id FROM tracked_loans WHERE state = 'Funded'"
+    )?;
+
+    let loans = stmt
+        .query_map([], |row| row.get(0))?
+        .collect::<SqliteResult<Vec<String>>>()?;
+
+    Ok(loans)
+}
+
+/// Track a funded loan for periodic liquidation checks.
+pub fn track_loan(data_dir: &str, loan_id: &str) -> SqliteResult<()> {
+    let conn = open_db(data_dir)?;
+    let now = now_millis();
+    conn.execute(
+        "INSERT OR REPLACE INTO tracked_loans (loan_id, state, added_at) VALUES (?1, 'Funded', ?2)",
+        params![loan_id, now],
+    )?;
+    Ok(())
+}
+
+/// Remove a loan from tracking (e.g., after repayment or liquidation).
+pub fn untrack_loan(data_dir: &str, loan_id: &str) -> SqliteResult<()> {
+    let conn = open_db(data_dir)?;
+    conn.execute("DELETE FROM tracked_loans WHERE loan_id = ?1", params![loan_id])?;
+    Ok(())
 }
 
 fn now_millis() -> u64 {

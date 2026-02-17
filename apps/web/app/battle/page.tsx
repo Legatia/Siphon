@@ -11,6 +11,13 @@ import {
   SHARD_TYPE_NAMES,
 } from "@siphon/core";
 import type { Shard, Battle, MatchmakingEntry } from "@siphon/core";
+import { parseEther } from "viem";
+import {
+  BATTLE_SETTLEMENT_ABI,
+  BATTLE_SETTLEMENT_ADDRESS,
+  getWalletClient,
+  idToBytes32,
+} from "@/lib/contracts";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -139,6 +146,23 @@ export default function BattlePage() {
 
     setSearching(true);
     try {
+      const stake = parseFloat(stakeAmount) || 0;
+
+      // For staked battles, create the escrow on-chain first
+      let escrowTxHash: string | undefined;
+      if (stake > 0) {
+        const walletClient = getWalletClient();
+        if (!walletClient) {
+          console.error("No wallet client available");
+          setSearching(false);
+          return;
+        }
+
+        // Note: on-chain escrow happens when a direct battle is created.
+        // For matchmaking, the escrow will be created when the match is found
+        // and the battle is formed. This stores the intent.
+      }
+
       const res = await fetch("/api/battles/matchmaking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,7 +170,7 @@ export default function BattlePage() {
           shardId: selectedShardId,
           ownerId: address,
           mode: selectedMode,
-          stakeAmount: parseFloat(stakeAmount) || 0,
+          stakeAmount: stake,
         }),
       });
 
@@ -158,6 +182,57 @@ export default function BattlePage() {
       }
     } catch (err) {
       console.error("Failed to join queue:", err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  /** Create a direct staked battle on-chain, then POST to API */
+  const handleCreateStakedBattle = async (
+    defenderAddress: string,
+    defenderShardId: string
+  ) => {
+    if (!selectedMode || !selectedShardId || !address) return;
+
+    const stake = parseFloat(stakeAmount) || 0;
+    if (stake <= 0) return;
+
+    setSearching(true);
+    try {
+      const walletClient = getWalletClient();
+      if (!walletClient) throw new Error("No wallet");
+
+      const battleId = crypto.randomUUID();
+      const battleIdHex = idToBytes32(battleId);
+
+      // Call createBattle on-chain with ETH stake
+      const hash = await walletClient.writeContract({
+        address: BATTLE_SETTLEMENT_ADDRESS as `0x${string}`,
+        abi: BATTLE_SETTLEMENT_ABI,
+        functionName: "createBattle",
+        args: [battleIdHex, defenderAddress as `0x${string}`],
+        value: parseEther(stakeAmount),
+        account: address,
+      });
+
+      // POST to API with escrow tx hash
+      await fetch("/api/battles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengerShardId: selectedShardId,
+          defenderShardId,
+          mode: selectedMode,
+          stakeAmount: stake,
+          challengerOwnerId: address,
+          defenderOwnerId: defenderAddress,
+          escrowTxHash: hash,
+        }),
+      });
+
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to create staked battle:", err);
     } finally {
       setSearching(false);
     }

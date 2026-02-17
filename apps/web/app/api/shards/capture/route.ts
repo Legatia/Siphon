@@ -50,11 +50,14 @@ export async function POST(request: NextRequest) {
     }
 
     const captured = captureShard(shardId, ownerId);
+
     return NextResponse.json({
       success: true,
       score: result.score,
       feedback: result.feedback,
       shard: captured,
+      // Signal that on-chain registration is needed
+      needsOnChainRegistration: true,
     });
   }
 

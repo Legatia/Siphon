@@ -13,6 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useAccount } from "wagmi";
+import {
+  SHARD_REGISTRY_ABI,
+  SHARD_REGISTRY_ADDRESS,
+  getWalletClient,
+  publicClient,
+  idToBytes32,
+} from "@/lib/contracts";
+import { keccak256, toHex } from "viem";
 
 interface CaptureDialogProps {
   shard: WildShard | null;
@@ -22,7 +31,7 @@ interface CaptureDialogProps {
   ownerId: string;
 }
 
-type Phase = "loading" | "challenge" | "submitting" | "success" | "failure";
+type Phase = "loading" | "challenge" | "submitting" | "success" | "registering" | "failure";
 
 export function CaptureDialog({
   shard,
@@ -31,11 +40,13 @@ export function CaptureDialog({
   onCaptured,
   ownerId,
 }: CaptureDialogProps) {
+  const { address } = useAccount();
   const [phase, setPhase] = useState<Phase>("loading");
   const [challenge, setChallenge] = useState<ChallengeType | null>(null);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const [timeLeft, setTimeLeft] = useState(60);
+  const [capturedShard, setCapturedShard] = useState<any>(null);
 
   const loadChallenge = useCallback(async () => {
     if (!shard) return;
@@ -89,6 +100,32 @@ export function CaptureDialog({
     setFeedback(data.feedback);
 
     if (data.success) {
+      setCapturedShard(data.shard);
+
+      // Try on-chain registration if wallet connected
+      if (data.needsOnChainRegistration && address) {
+        setPhase("registering");
+        try {
+          const walletClient = getWalletClient();
+          if (walletClient && data.shard) {
+            const shardIdBytes = idToBytes32(data.shard.id);
+            const genomeHash = keccak256(toHex(data.shard.genomeHash));
+
+            const hash = await walletClient.writeContract({
+              address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+              abi: SHARD_REGISTRY_ABI,
+              functionName: "register",
+              args: [shardIdBytes, genomeHash],
+              account: address,
+            });
+            await publicClient.waitForTransactionReceipt({ hash });
+          }
+        } catch (err) {
+          // Non-blocking: on-chain registration is optional at capture time
+          console.warn("On-chain registration skipped:", err);
+        }
+      }
+
       setPhase("success");
     } else {
       setPhase("failure");
@@ -170,6 +207,17 @@ export function CaptureDialog({
           {phase === "submitting" && (
             <div className="text-center py-8">
               <div className="animate-pulse text-siphon-teal">Evaluating...</div>
+            </div>
+          )}
+
+          {phase === "registering" && (
+            <div className="text-center py-8">
+              <div className="animate-pulse text-siphon-teal">
+                Registering on-chain...
+              </div>
+              <p className="text-xs text-ghost mt-2">
+                Confirm the transaction in your wallet
+              </p>
             </div>
           )}
 

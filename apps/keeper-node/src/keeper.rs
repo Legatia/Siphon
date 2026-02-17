@@ -4,6 +4,7 @@ use libp2p::Swarm;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use crate::chain;
 use crate::config::Config;
 use crate::db;
 use crate::gossip;
@@ -12,6 +13,9 @@ use crate::shard::Shard;
 
 /// Interval between keeper heartbeats broadcast to the network.
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Interval between liquidation checks (1 hour).
+const LIQUIDATION_CHECK_INTERVAL: Duration = Duration::from_secs(3600);
 
 /// State of the keeper node, tracking hosted shards and reputation.
 pub struct KeeperState {
@@ -85,10 +89,45 @@ impl KeeperState {
         }
     }
 
+    /// Check funded loans for liquidation eligibility and log warnings.
+    async fn check_liquidations(&self) {
+        let loans = match db::get_funded_loans(&self.config.data_dir) {
+            Ok(loans) => loans,
+            Err(e) => {
+                tracing::warn!("Failed to fetch funded loans: {}", e);
+                return;
+            }
+        };
+
+        if loans.is_empty() {
+            return;
+        }
+
+        tracing::info!("Checking {} funded loans for liquidation", loans.len());
+
+        for loan_id in &loans {
+            match chain::check_liquidatable(&self.config, loan_id).await {
+                Ok(true) => {
+                    tracing::warn!(
+                        "LIQUIDATION ALERT: Loan {} is liquidatable! Lender should call liquidate().",
+                        loan_id
+                    );
+                }
+                Ok(false) => {
+                    tracing::debug!("Loan {} is healthy", loan_id);
+                }
+                Err(e) => {
+                    tracing::debug!("Could not check loan {}: {}", loan_id, e);
+                }
+            }
+        }
+    }
+
     /// Main event loop for the keeper node.
     /// Processes swarm events and runs periodic tasks.
     pub async fn run(&mut self, swarm: &mut Swarm<KeeperBehaviour>) {
         let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL);
+        let mut liquidation_interval = tokio::time::interval(LIQUIDATION_CHECK_INTERVAL);
 
         loop {
             tokio::select! {
@@ -97,6 +136,9 @@ impl KeeperState {
                 }
                 _ = heartbeat_interval.tick() => {
                     self.maybe_send_heartbeat(swarm);
+                }
+                _ = liquidation_interval.tick() => {
+                    self.check_liquidations().await;
                 }
             }
         }

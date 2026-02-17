@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       stakeAmount,
       challengerOwnerId,
       defenderOwnerId,
+      escrowTxHash,
     } = body;
 
     if (!challengerShardId || !defenderShardId || !mode || !challengerOwnerId || !defenderOwnerId) {
@@ -52,14 +53,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Staked battles require an escrow tx hash
+    const stake = stakeAmount ?? 0;
+    if (stake > 0 && !escrowTxHash) {
+      return NextResponse.json(
+        { error: "escrowTxHash required for staked battles" },
+        { status: 400 }
+      );
+    }
+
     const battle = createBattle(
       challengerShardId,
       defenderShardId,
       mode as BattleMode,
-      stakeAmount ?? 0,
+      stake,
       challengerOwnerId,
       defenderOwnerId
     );
+
+    // Store escrow tx hash if provided
+    if (escrowTxHash && stake > 0) {
+      const { getDb } = await import("@/lib/db");
+      const db = getDb();
+      db.prepare("UPDATE battles SET escrow_tx_hash = ? WHERE id = ?").run(
+        escrowTxHash,
+        battle.id
+      );
+      battle.escrowTxHash = escrowTxHash;
+    }
 
     return NextResponse.json(battle, { status: 201 });
   } catch (error) {
