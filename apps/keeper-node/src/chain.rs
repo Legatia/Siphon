@@ -221,6 +221,39 @@ pub async fn register_shard(
     ))
 }
 
+/// Set a shard to wild on-chain via the ShardRegistry contract.
+pub async fn set_wild(config: &Config, shard_id: &str) -> Result<String, String> {
+    let registry_address = config
+        .shard_registry_address
+        .as_ref()
+        .ok_or("shard_registry_address not configured")?;
+
+    let address: Address = registry_address
+        .parse()
+        .map_err(|e| format!("Invalid registry address: {}", e))?;
+
+    let provider = make_provider(config)?;
+    let contract = IShardRegistry::new(address, &provider);
+
+    let shard_id_bytes = parse_bytes32(shard_id)?;
+
+    let tx = contract
+        .setWild(shard_id_bytes.into())
+        .send()
+        .await
+        .map_err(|e| format!("setWild transaction failed: {}", e))?;
+
+    let receipt = tx
+        .get_receipt()
+        .await
+        .map_err(|e| format!("Failed to get receipt: {}", e))?;
+
+    Ok(format!(
+        "Shard set to wild on-chain. Tx: {:?}",
+        receipt.transaction_hash
+    ))
+}
+
 /// Attest a shard's stats to the ShardValuation contract.
 pub async fn attest_shard_value(
     config: &Config,

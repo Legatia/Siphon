@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::config::Config;
+use crate::db;
 use crate::gossip;
 use crate::node::KeeperBehaviour;
 use crate::shard::Shard;
@@ -59,9 +60,22 @@ impl KeeperState {
         shard
     }
 
+    /// Sync hosted_shards from SQLite so P2P heartbeat reflects HTTP-spawned shards.
+    fn sync_from_db(&mut self) {
+        if let Ok(shards) = db::get_shards(&self.config.data_dir) {
+            self.hosted_shards.clear();
+            for shard in shards {
+                self.hosted_shards.insert(shard.id.clone(), shard);
+            }
+        }
+    }
+
     /// Check if it's time to send a heartbeat and do so if needed.
     fn maybe_send_heartbeat(&mut self, swarm: &mut Swarm<KeeperBehaviour>) {
         if self.last_heartbeat.elapsed() >= HEARTBEAT_INTERVAL {
+            // Sync from SQLite to include shards created via HTTP API
+            self.sync_from_db();
+
             let _ = gossip::publish_heartbeat(
                 swarm,
                 self.hosted_shards.len(),

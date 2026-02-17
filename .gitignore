@@ -45,3 +45,17 @@ Thumbs.db
 
 # Siphon local data
 .siphon/
+
+# Rust lock (Cargo)
+# Keep Cargo.lock for binaries, ignore for libraries
+# apps/keeper-node/Cargo.lock
+
+# Foundry lock
+packages/contracts/foundry.lock
+
+# Workspaces (shard execution sandboxes)
+workspaces/
+
+# Temporary files
+*.tmp
+*.bak

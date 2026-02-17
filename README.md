@@ -29,7 +29,7 @@ siphon-protocol/
 | **ShardValuation** | Keeper-attested composite valuation oracle |
 | **LoanVault** | Agent-as-collateral ETH lending protocol |
 
-108 Forge tests passing. All 6 contracts are fully wired to the web app and keeper node — loan actions, identity minting, reputation reads, staking, and attestations all execute on-chain.
+108 Forge tests + 56 Rust tests passing. All 6 contracts are fully wired to the web app and keeper node — loan actions, identity minting, reputation reads, staking, and attestations all execute on-chain.
 
 ## Loan Protocol
 
@@ -107,7 +107,7 @@ cd apps/keeper-node
 
 # Initialize config
 cargo run -- config init
-# Edit ~/.siphon/config.toml with your RPC URL, private key path, and contract addresses
+# Edit ~/.siphon/config.toml with your RPC URL, private key path, contract addresses, and api_key
 
 # Stake ETH to join the keeper network
 cargo run -- stake --amount 0.1
@@ -119,7 +119,8 @@ cargo run -- status
 cargo run -- start
 
 # Attest all hosted shards' values on-chain
-curl -X POST http://localhost:3001/api/attest-all
+curl -X POST http://localhost:3001/api/attest-all \
+  -H "Authorization: Bearer your-api-key"
 ```
 
 ## Web App Pages
@@ -152,14 +153,70 @@ curl -X POST http://localhost:3001/api/attest-all
 
 ## Keeper Node API
 
+All endpoints (except `/api/status`) require `Authorization: Bearer <api_key>` when `api_key` is set in config.
+
 ```
-GET  /api/status              Node health + resource usage
-GET  /api/shards              List hosted shards
-POST /api/shards/spawn        Spawn new shard
-GET  /api/shards/{id}         Get shard details
-POST /api/shards/{id}/train   Training interaction (LLM inference)
-POST /api/shards/{id}/attest  Attest shard value on-chain
-POST /api/attest-all          Attest all hosted shards
+GET  /api/status                Node health + resource usage (no auth required)
+GET  /api/shards                List hosted shards
+POST /api/shards/spawn          Spawn new shard
+GET  /api/shards/{id}           Get shard details
+DELETE /api/shards/{id}         Delete a shard
+POST /api/shards/{id}/train     Training interaction (LLM inference)
+GET  /api/shards/{id}/train     Get training history
+POST /api/shards/{id}/execute   Execute a task (sync or async)
+GET  /api/shards/{id}/actions   Get execution history
+POST /api/shards/{id}/register  Register shard on-chain (ShardRegistry)
+POST /api/shards/{id}/release   Release shard to wild (on-chain + local DB)
+POST /api/shards/{id}/attest    Attest shard value on-chain (ShardValuation)
+POST /api/attest-all            Attest all hosted shards
+GET  /api/jobs/{id}             Poll async job status + results
+```
+
+### Agent Runtime Integration
+
+External agents (OpenClaw, custom LLM agents, etc.) can connect to a keeper node and manage shards via the HTTP API. The keeper acts as an execution sandbox — the agent sends tasks, the shard executes them with tools (code eval, HTTP fetch, file I/O, shell).
+
+**Async execution** — for long-running tasks, set `background: true` in the execute request:
+
+```bash
+# Submit task (returns immediately with job_id)
+curl -X POST http://localhost:3001/api/shards/{id}/execute \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"task": "Analyze this CSV and generate a report", "background": true}'
+
+# Poll for results
+curl http://localhost:3001/api/jobs/{job_id} \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+**Per-request inference override** — agents can bring their own LLM:
+
+```json
+{
+  "task": "Write unit tests for the auth module",
+  "background": true,
+  "inference_url": "http://localhost:11434/v1/chat/completions",
+  "inference_model": "llama3.2",
+  "inference_api_key": ""
+}
+```
+
+**Lifecycle** — spawn → register on-chain → train/execute → release to wild:
+
+```bash
+# Spawn a new shard
+curl -X POST http://localhost:3001/api/shards/spawn \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"shard_type": "oracle"}'
+
+# Register on-chain (writes to ShardRegistry contract)
+curl -X POST http://localhost:3001/api/shards/{id}/register \
+  -H "Authorization: Bearer $API_KEY"
+
+# Release to wild (on-chain setWild + local DB update)
+curl -X POST http://localhost:3001/api/shards/{id}/release \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ## Keeper CLI

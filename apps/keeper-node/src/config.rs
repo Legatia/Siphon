@@ -25,6 +25,11 @@ pub struct Config {
     #[serde(default)]
     pub openai_api_key: Option<String>,
 
+    /// API key for authenticating HTTP requests to the keeper node.
+    /// When set, all endpoints (except /api/status) require `Authorization: Bearer <key>`.
+    #[serde(default)]
+    pub api_key: Option<String>,
+
     /// Contract address for the ShardRegistry
     #[serde(default)]
     pub shard_registry_address: Option<String>,
@@ -83,6 +88,7 @@ impl Default for Config {
             listen_port: 9000,
             bootstrap_peers: vec![],
             openai_api_key: None,
+            api_key: None,
             shard_registry_address: None,
             keeper_staking_address: None,
             shard_valuation_address: None,
@@ -151,6 +157,10 @@ bootstrap_peers = []
 
 # OpenAI API key for shard inference (required for hosting shards)
 # openai_api_key = "sk-..."
+
+# API key for authenticating HTTP requests to the keeper node.
+# When set, all endpoints (except /api/status) require: Authorization: Bearer <key>
+# api_key = "your-secret-key-here"
 
 # ShardRegistry contract address on Base Sepolia
 # shard_registry_address = "0x..."

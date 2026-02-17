@@ -144,6 +144,7 @@ async fn main() {
             let api_port = cfg.http_port;
             let shared_state = Arc::new(RwLock::new(api::AppState {
                 config: cfg.clone(),
+                jobs: std::collections::HashMap::new(),
             }));
             let app = api::router(shared_state);
 
