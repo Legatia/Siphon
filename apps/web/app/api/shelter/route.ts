@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllShards } from "@/lib/shard-engine";
+import { getAllShards, getOwnedShards } from "@/lib/shard-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +8,9 @@ export async function GET(request: NextRequest) {
   const typeFilter = searchParams.get("type");
   const minLevel = parseInt(searchParams.get("minLevel") || "0");
   const maxLevel = parseInt(searchParams.get("maxLevel") || "100");
+  const ownerId = searchParams.get("ownerId");
 
-  let shards = getAllShards();
+  let shards = ownerId ? getOwnedShards(ownerId) : getAllShards();
 
   if (typeFilter !== null && typeFilter !== "") {
     const typeNum = parseInt(typeFilter);

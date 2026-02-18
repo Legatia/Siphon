@@ -92,6 +92,25 @@ export default function MarketplacePage() {
       .catch(() => setLoading(false));
   }, [slotFilter, rarityFilter]);
 
+  // Fetch shard listings from DB
+  useEffect(() => {
+    fetch("/api/marketplace")
+      .then((r) => r.json())
+      .then((data) => {
+        setListings(
+          data.map((row: any) => ({
+            shardId: row.shard_id,
+            seller: row.seller,
+            price: row.price,
+            listedAt: row.created_at,
+            shardName: row.shard_name,
+            shardSpecies: row.shard_species,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch owned cosmetics + shards
   useEffect(() => {
     if (!address) return;
@@ -141,13 +160,14 @@ export default function MarketplacePage() {
       if (!walletClient) throw new Error("No wallet");
 
       // First approve the marketplace as locker for this user
-      await walletClient.writeContract({
+      const approveHash = await walletClient.writeContract({
         address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
         abi: SHARD_REGISTRY_LOCK_ABI,
         functionName: "approveLock",
         args: [SHARD_MARKETPLACE_ADDRESS as `0x${string}`],
         account: address,
       });
+      await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
       // Then list the shard
       const shardIdHex = idToBytes32(listShardId);
@@ -163,8 +183,22 @@ export default function MarketplacePage() {
 
       await publicClient.waitForTransactionReceipt({ hash });
 
-      // Add to local listings
+      // Persist listing to DB
       const shard = myShards.find((s) => s.id === listShardId);
+      await fetch("/api/marketplace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shardId: listShardId,
+          seller: address,
+          price: listPrice,
+          shardName: shard?.name,
+          shardSpecies: shard?.species,
+          txHash: hash,
+        }),
+      });
+
+      // Add to local listings
       setListings((prev) => [
         ...prev,
         {
@@ -207,6 +241,13 @@ export default function MarketplacePage() {
 
       await publicClient.waitForTransactionReceipt({ hash });
 
+      // Update DB
+      await fetch("/api/marketplace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shardId: listing.shardId, state: "sold" }),
+      });
+
       // Remove from listings
       setListings((prev) =>
         prev.filter((l) => l.shardId !== listing.shardId)
@@ -236,6 +277,13 @@ export default function MarketplacePage() {
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
+
+      // Update DB
+      await fetch("/api/marketplace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shardId, state: "cancelled" }),
+      });
 
       setListings((prev) => prev.filter((l) => l.shardId !== shardId));
     } catch (error) {

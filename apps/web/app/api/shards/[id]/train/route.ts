@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getShardById, updateShardXp } from "@/lib/shard-engine";
+import { getShardById, updateShardXp, improveShardStats } from "@/lib/shard-engine";
 import { generateShardResponse } from "@/lib/llm";
 import { getDb } from "@/lib/db";
 import { PROTOCOL_CONSTANTS } from "@siphon/core";
@@ -7,22 +7,24 @@ import { canSendMessage, incrementMessageCount } from "@/lib/subscription-check"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const db = getDb();
   const messages = db
     .prepare(
       "SELECT * FROM training_messages WHERE shard_id = ? ORDER BY timestamp ASC LIMIT 100"
     )
-    .all(params.id);
+    .all(id);
 
   return NextResponse.json(messages);
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await request.json();
   const { message, sessionId } = body;
 
@@ -30,7 +32,7 @@ export async function POST(
     return NextResponse.json({ error: "Missing message" }, { status: 400 });
   }
 
-  const shard = getShardById(params.id);
+  const shard = getShardById(id);
   if (!shard) {
     return NextResponse.json({ error: "Shard not found" }, { status: 404 });
   }
@@ -57,7 +59,7 @@ export async function POST(
     .prepare(
       "SELECT role, content FROM training_messages WHERE shard_id = ? AND session_id = ? ORDER BY timestamp ASC LIMIT 20"
     )
-    .all(params.id, sessionId || "default") as { role: string; content: string }[];
+    .all(id, sessionId || "default") as { role: string; content: string }[];
 
   const chatHistory = history.map((m) => ({
     role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -68,7 +70,7 @@ export async function POST(
   const userMsgId = crypto.randomUUID();
   db.prepare(
     "INSERT INTO training_messages (id, session_id, shard_id, role, content, xp_gained, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(userMsgId, sessionId || "default", params.id, "user", message, 0, Date.now());
+  ).run(userMsgId, sessionId || "default", id, "user", message, 0, Date.now());
 
   // Generate AI response
   const response = await generateShardResponse(shard, chatHistory, message);
@@ -78,10 +80,11 @@ export async function POST(
   const shardMsgId = crypto.randomUUID();
   db.prepare(
     "INSERT INTO training_messages (id, session_id, shard_id, role, content, xp_gained, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(shardMsgId, sessionId || "default", params.id, "shard", response, xpGained, Date.now());
+  ).run(shardMsgId, sessionId || "default", id, "shard", response, xpGained, Date.now());
 
-  // Update shard XP
-  const updated = updateShardXp(params.id, xpGained);
+  // Update shard XP and stats
+  const updated = updateShardXp(id, xpGained);
+  const withStats = improveShardStats(id);
 
   // Increment message count for capped tiers
   if (ownerId) {
@@ -91,6 +94,6 @@ export async function POST(
   return NextResponse.json({
     response,
     xpGained,
-    shard: updated,
+    shard: withStats ?? updated,
   });
 }

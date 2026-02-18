@@ -85,6 +85,9 @@ contract SiphonIdentityTest is Test {
         vm.prank(alice);
         uint256 tokenId = identity.mintAgent(genome1);
 
+        // Approve bob as arbiter so he can add validations
+        identity.approveArbiter(bob);
+
         vm.prank(bob);
         identity.addValidation(tokenId, true, "Good behavior");
 
@@ -96,11 +99,31 @@ contract SiphonIdentityTest is Test {
         vm.prank(alice);
         uint256 tokenId = identity.mintAgent(genome1);
 
+        identity.approveArbiter(bob);
+
         vm.prank(bob);
         identity.addValidation(tokenId, false, "Bad behavior");
 
         assertEq(identity.getValidationCount(tokenId), 1);
         assertEq(identity.getReputation(tokenId), -1);
+    }
+
+    function test_RevertUnauthorizedReputation() public {
+        vm.prank(alice);
+        uint256 tokenId = identity.mintAgent(genome1);
+
+        vm.prank(bob);
+        vm.expectRevert("Not authorized arbiter");
+        identity.updateReputation(tokenId, 10);
+    }
+
+    function test_RevertUnauthorizedValidation() public {
+        vm.prank(alice);
+        uint256 tokenId = identity.mintAgent(genome1);
+
+        vm.prank(bob);
+        vm.expectRevert("Not authorized arbiter");
+        identity.addValidation(tokenId, true, "No access");
     }
 
     function test_SetTokenURI() public {

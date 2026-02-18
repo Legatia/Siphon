@@ -44,7 +44,7 @@ export const TIER_PRICES: Record<string, TierConfig> = {
   trainer_plus: {
     name: "Trainer+",
     price: 499,
-    priceId: "price_trainer_plus",
+    priceId: process.env.STRIPE_PRICE_TRAINER_PLUS || "",
     shardLimit: 3,
     messageCap: 1000,
     hostingType: "platform",
@@ -60,7 +60,7 @@ export const TIER_PRICES: Record<string, TierConfig> = {
   keeper: {
     name: "Keeper",
     price: 999,
-    priceId: "price_keeper",
+    priceId: process.env.STRIPE_PRICE_KEEPER || "",
     shardLimit: 10,
     messageCap: -1,
     hostingType: "self",
@@ -77,7 +77,7 @@ export const TIER_PRICES: Record<string, TierConfig> = {
   keeper_plus: {
     name: "Keeper+",
     price: 2999,
-    priceId: "price_keeper_plus",
+    priceId: process.env.STRIPE_PRICE_KEEPER_PLUS || "",
     shardLimit: 25,
     messageCap: -1,
     hostingType: "self",
@@ -93,7 +93,7 @@ export const TIER_PRICES: Record<string, TierConfig> = {
   keeper_pro: {
     name: "Keeper Pro",
     price: 9999,
-    priceId: "price_keeper_pro",
+    priceId: process.env.STRIPE_PRICE_KEEPER_PRO || "",
     shardLimit: 100,
     messageCap: -1,
     hostingType: "self",

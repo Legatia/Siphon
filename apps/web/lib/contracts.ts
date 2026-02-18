@@ -53,6 +53,41 @@ export const SHARD_REGISTRY_ABI = [
     ],
   },
   {
+    type: "function",
+    name: "getShard",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "genomeHash", type: "bytes32" },
+          { name: "owner", type: "address" },
+          { name: "origin", type: "address" },
+          { name: "isWild", type: "bool" },
+          { name: "registeredAt", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOwnerShardCount",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOwnerShardAtIndex",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "index", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
     type: "event",
     name: "OwnershipTransferred",
     inputs: [
@@ -259,6 +294,30 @@ export const SIPHON_IDENTITY_ABI = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "getValidationCount",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOwnerTokenCount",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "setTokenURI",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "uri", type: "string" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ] as const;
 
 // --- Lock extensions on ShardRegistry ---
@@ -290,6 +349,40 @@ export const SHARD_REGISTRY_LOCK_ABI = [
     inputs: [{ name: "shardId", type: "bytes32" }],
     outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "approvedLockers",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "locker", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "lockShard",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "unlockShard",
+    inputs: [{ name: "shardId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "seize",
+    inputs: [
+      { name: "shardId", type: "bytes32" },
+      { name: "to", type: "address" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
     type: "event",

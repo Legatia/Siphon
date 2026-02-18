@@ -17,7 +17,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { parseEther, formatEther, keccak256, toHex } from "viem";
+import type { Shard } from "@siphon/core";
+import { parseEther, formatEther } from "viem";
 import {
   BOUNTY_BOARD_ABI,
   BOUNTY_BOARD_ADDRESS,
@@ -25,7 +26,6 @@ import {
   publicClient,
   idToBytes32,
 } from "@/lib/contracts";
-import crypto from "crypto";
 
 interface BountyRecord {
   id: string;
@@ -62,6 +62,20 @@ export default function BountiesPage() {
 
   // Claim state
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [claimShardId, setClaimShardId] = useState<Record<string, string>>({});
+  const [myShards, setMyShards] = useState<Shard[]>([]);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [disputingId, setDisputingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // Fetch user's shards for claim picker
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/shards?ownerId=${address}`)
+      .then((r) => r.json())
+      .then((data) => setMyShards(data))
+      .catch(() => {});
+  }, [address]);
 
   useEffect(() => {
     fetch("/api/bounties")
@@ -147,6 +161,18 @@ export default function BountiesPage() {
 
       await publicClient.waitForTransactionReceipt({ hash });
 
+      // Persist claim to DB
+      await fetch("/api/bounties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bountyId: bounty.id,
+          action: "claim",
+          caller: address,
+          shardOrSwarmId,
+        }),
+      });
+
       setBounties((prev) =>
         prev.map((b) =>
           b.id === bounty.id
@@ -161,9 +187,84 @@ export default function BountiesPage() {
     }
   };
 
+  const handleCompleteBounty = async (bounty: BountyRecord) => {
+    if (!address) return;
+
+    setCompletingId(bounty.id);
+    try {
+      const walletClient = getWalletClient();
+      if (!walletClient) throw new Error("No wallet");
+
+      const hash = await walletClient.writeContract({
+        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+        abi: BOUNTY_BOARD_ABI,
+        functionName: "completeBounty",
+        args: [bounty.bounty_id_hex as `0x${string}`],
+        account: address,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      // Update DB
+      await fetch("/api/bounties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bountyId: bounty.id, action: "complete", caller: address }),
+      });
+
+      setBounties((prev) =>
+        prev.map((b) =>
+          b.id === bounty.id ? { ...b, state: "Completed" } : b
+        )
+      );
+    } catch (error) {
+      console.error("Complete bounty error:", error);
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
+  const handleDisputeBounty = async (bounty: BountyRecord) => {
+    if (!address) return;
+
+    setDisputingId(bounty.id);
+    try {
+      const walletClient = getWalletClient();
+      if (!walletClient) throw new Error("No wallet");
+
+      const hash = await walletClient.writeContract({
+        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+        abi: BOUNTY_BOARD_ABI,
+        functionName: "disputeBounty",
+        args: [bounty.bounty_id_hex as `0x${string}`],
+        account: address,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      // Update DB
+      await fetch("/api/bounties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bountyId: bounty.id, action: "dispute", caller: address }),
+      });
+
+      setBounties((prev) =>
+        prev.map((b) =>
+          b.id === bounty.id ? { ...b, state: "Disputed" } : b
+        )
+      );
+    } catch (error) {
+      console.error("Dispute bounty error:", error);
+    } finally {
+      setDisputingId(null);
+    }
+  };
+
   const handleCancelBounty = async (bounty: BountyRecord) => {
     if (!address) return;
 
+    setCancellingId(bounty.id);
     try {
       const walletClient = getWalletClient();
       if (!walletClient) throw new Error("No wallet");
@@ -178,6 +279,13 @@ export default function BountiesPage() {
 
       await publicClient.waitForTransactionReceipt({ hash });
 
+      // Persist cancel to DB
+      await fetch("/api/bounties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bountyId: bounty.id, action: "cancel", caller: address }),
+      });
+
       setBounties((prev) =>
         prev.map((b) =>
           b.id === bounty.id ? { ...b, state: "Cancelled" } : b
@@ -185,6 +293,8 @@ export default function BountiesPage() {
       );
     } catch (error) {
       console.error("Cancel bounty error:", error);
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -275,20 +385,51 @@ export default function BountiesPage() {
                   </div>
                   {address &&
                   address.toLowerCase() !== bounty.poster.toLowerCase() ? (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() =>
-                        handleClaimBounty(bounty, "default-shard")
-                      }
-                      disabled={claimingId === bounty.id}
-                    >
-                      {claimingId === bounty.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Claim Bounty"
-                      )}
-                    </Button>
+                    <div className="space-y-2">
+                      <select
+                        value={claimShardId[bounty.id] || ""}
+                        onChange={(e) =>
+                          setClaimShardId((prev) => ({
+                            ...prev,
+                            [bounty.id]: e.target.value,
+                          }))
+                        }
+                        className="flex h-8 w-full rounded-lg border border-siphon-teal/20 bg-abyss px-2 py-1 text-xs text-foam focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-siphon-teal/30"
+                      >
+                        <option value="" className="bg-abyss text-ghost">
+                          Select shard...
+                        </option>
+                        {myShards.map((s) => (
+                          <option
+                            key={s.id}
+                            value={s.id}
+                            className="bg-abyss text-foam"
+                          >
+                            {s.name} (Lvl {s.level})
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() =>
+                          handleClaimBounty(
+                            bounty,
+                            claimShardId[bounty.id] || ""
+                          )
+                        }
+                        disabled={
+                          claimingId === bounty.id ||
+                          !claimShardId[bounty.id]
+                        }
+                      >
+                        {claimingId === bounty.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Claim Bounty"
+                        )}
+                      </Button>
+                    </div>
                   ) : address &&
                     address.toLowerCase() ===
                       bounty.poster.toLowerCase() ? (
@@ -297,8 +438,13 @@ export default function BountiesPage() {
                       size="sm"
                       className="w-full"
                       onClick={() => handleCancelBounty(bounty)}
+                      disabled={cancellingId === bounty.id}
                     >
-                      Cancel
+                      {cancellingId === bounty.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Cancel"
+                      )}
                     </Button>
                   ) : null}
                 </Card>
@@ -333,7 +479,7 @@ export default function BountiesPage() {
                         <span className="ml-1">{bounty.state}</span>
                       </Badge>
                     </div>
-                    <div className="text-[10px] text-ghost/50">
+                    <div className="text-[10px] text-ghost/50 mb-3">
                       <p>Reward: {bounty.reward} ETH</p>
                       {bounty.claimant && (
                         <p>
@@ -342,6 +488,55 @@ export default function BountiesPage() {
                         </p>
                       )}
                     </div>
+                    {address && bounty.state === "Claimed" && (
+                      <div className="flex gap-2">
+                        {address.toLowerCase() === bounty.poster.toLowerCase() && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleCompleteBounty(bounty)}
+                              disabled={completingId === bounty.id}
+                            >
+                              {completingId === bounty.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Approve"
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisputeBounty(bounty)}
+                              disabled={disputingId === bounty.id}
+                            >
+                              {disputingId === bounty.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Dispute"
+                              )}
+                            </Button>
+                          </>
+                        )}
+                        {bounty.claimant &&
+                          address.toLowerCase() === bounty.claimant.toLowerCase() && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisputeBounty(bounty)}
+                              disabled={disputingId === bounty.id}
+                            >
+                              {disputingId === bounty.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Dispute"
+                              )}
+                            </Button>
+                          )}
+                      </div>
+                    )}
                   </Card>
                 );
               })}

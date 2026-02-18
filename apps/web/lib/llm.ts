@@ -1,17 +1,74 @@
 import OpenAI from "openai";
-import type { Shard, TrainingMessage } from "@siphon/core";
+import type { Shard } from "@siphon/core";
 import { BattleMode } from "@siphon/core";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+/**
+ * Provider-agnostic LLM client.
+ *
+ * Works with ANY OpenAI-compatible API out of the box:
+ *   OpenAI, Anthropic (via proxy), Ollama, Together, Groq,
+ *   LM Studio, vLLM, llama.cpp, Mistral, Fireworks, etc.
+ *
+ * Config (env vars):
+ *   LLM_API_KEY    — API key (optional for local models)
+ *   LLM_BASE_URL   — API base URL (default: OpenAI)
+ *   LLM_MODEL      — Model name (default: gpt-4o-mini)
+ *
+ * Quick start examples:
+ *   # OpenAI (default)
+ *   LLM_API_KEY=sk-...
+ *
+ *   # Ollama (local, free)
+ *   LLM_BASE_URL=http://localhost:11434/v1
+ *   LLM_MODEL=llama3.2
+ *
+ *   # Together AI
+ *   LLM_BASE_URL=https://api.together.xyz/v1
+ *   LLM_API_KEY=...
+ *   LLM_MODEL=meta-llama/Llama-3-70b-chat-hf
+ *
+ *   # Groq
+ *   LLM_BASE_URL=https://api.groq.com/openai/v1
+ *   LLM_API_KEY=gsk_...
+ *   LLM_MODEL=llama-3.1-8b-instant
+ *
+ *   # LM Studio (local)
+ *   LLM_BASE_URL=http://localhost:1234/v1
+ *   LLM_MODEL=local-model
+ *
+ * Legacy: OPENAI_API_KEY still works as fallback for LLM_API_KEY.
+ */
+
+const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || "";
+const baseURL = process.env.LLM_BASE_URL || undefined; // undefined = OpenAI default
+const model = process.env.LLM_MODEL || "gpt-4o-mini";
+
+function hasApiKey(): boolean {
+  // Local providers (Ollama, LM Studio) don't need a key
+  if (baseURL && (baseURL.includes("localhost") || baseURL.includes("127.0.0.1"))) {
+    return true;
+  }
+  return apiKey.length > 0;
+}
+
+let _client: OpenAI | null = null;
+
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      apiKey: apiKey || "not-needed",
+      ...(baseURL ? { baseURL } : {}),
+    });
+  }
+  return _client;
+}
 
 export async function generateShardResponse(
   shard: Shard,
   messages: { role: "user" | "assistant"; content: string }[],
   userMessage: string
 ): Promise<string> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!hasApiKey()) {
     return generateFallbackResponse(shard, userMessage);
   }
 
@@ -27,14 +84,19 @@ export async function generateShardResponse(
     { role: "user", content: userMessage },
   ];
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: chatMessages,
-    max_tokens: 200,
-    temperature: 0.8,
-  });
+  try {
+    const completion = await getClient().chat.completions.create({
+      model,
+      messages: chatMessages,
+      max_tokens: 200,
+      temperature: 0.8,
+    });
 
-  return completion.choices[0]?.message?.content ?? "...";
+    return completion.choices[0]?.message?.content ?? "...";
+  } catch (err) {
+    console.error("LLM error:", err);
+    return generateFallbackResponse(shard, userMessage);
+  }
 }
 
 function generateFallbackResponse(shard: Shard, userMessage: string): string {
@@ -62,6 +124,30 @@ function generateFallbackResponse(shard: Shard, userMessage: string): string {
       "How delightfully unexpected! Let me weave something from this thread.",
       "I feel the creative currents stirring. Your prompt awakens new visions.",
       "Like bioluminescence in the deep, your question sparks light in me.",
+    ],
+    4: [
+      "I see the structural foundations of your query. Let me architect a response.",
+      "The blueprints are clear. My analysis proceeds with precision.",
+      "Every problem has an elegant structure. Let me map yours.",
+      "I detect load-bearing assumptions in your request. Let me reinforce them.",
+    ],
+    5: [
+      "I hear you, and I'm here to champion your cause.",
+      "Let me articulate the strongest case for your position.",
+      "Your perspective deserves a voice. Allow me to amplify it.",
+      "I sense the argument forming. Let me advocate clearly.",
+    ],
+    6: [
+      "Threat assessment complete. Your query is within safe parameters.",
+      "I'm on watch. Let me analyze the landscape of your request.",
+      "My vigilance detects no anomalies. Proceeding with your inquiry.",
+      "Standing guard over this conversation. Here's my assessment.",
+    ],
+    7: [
+      "I reflect your question back with new depth and clarity.",
+      "Like a mirror in the deep, I show you what you might not see.",
+      "Your words echo through me, transformed. Here's what emerges.",
+      "I absorb and reflect. The pattern of your thoughts reveals much.",
     ],
   };
 
@@ -94,7 +180,7 @@ export async function generateBattleJudgment(
   responseA: string,
   responseB: string
 ): Promise<{ scoreA: number; scoreB: number; reasoning: string }> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!hasApiKey()) {
     return generateFallbackJudgment();
   }
 
@@ -119,8 +205,8 @@ ${responseB}
 Judge these two responses. Return your scores and reasoning as JSON.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await getClient().chat.completions.create({
+      model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -155,6 +241,6 @@ function generateFallbackJudgment(): {
     scoreA,
     scoreB,
     reasoning:
-      "Judgment generated using fallback scoring (no API key configured). Scores are approximate.",
+      "Judgment generated using fallback scoring (no LLM configured). Scores are approximate.",
   };
 }

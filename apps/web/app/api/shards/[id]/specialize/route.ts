@@ -9,8 +9,9 @@ import {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     const { branch } = body;
@@ -23,7 +24,7 @@ export async function POST(
       );
     }
 
-    const shard = getShardById(params.id);
+    const shard = getShardById(id);
     if (!shard) {
       return NextResponse.json(
         { error: "Shard not found" },

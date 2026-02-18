@@ -93,8 +93,17 @@ export default function ShardDetailPage() {
       });
       const data = await res.json();
 
+      if (!res.ok) {
+        // 409 = already minted, others = real errors
+        if (res.status === 409) {
+          console.log("Shard already has an identity token");
+        } else {
+          console.error("Mint error:", data.error);
+        }
+        return;
+      }
+
       if (!data.needsOnChainMint) {
-        // Already minted or error
         if (data.shard) setShard(data.shard);
         return;
       }

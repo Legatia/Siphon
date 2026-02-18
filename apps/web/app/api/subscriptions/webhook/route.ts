@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, TIER_PRICES } from "@/lib/stripe";
 import { getDb } from "@/lib/db";
 import crypto from "crypto";
 import Stripe from "stripe";
@@ -105,13 +105,15 @@ export async function POST(request: NextRequest) {
             ? subscription.customer
             : subscription.customer?.id;
 
-        // Determine tier from price
+        // Determine tier from price by matching against env-configured price IDs
         const priceId = subscription.items.data[0]?.price?.id;
         let tier = "free_trainer";
-        if (priceId === "price_trainer_plus") tier = "trainer_plus";
-        else if (priceId === "price_keeper") tier = "keeper";
-        else if (priceId === "price_keeper_plus") tier = "keeper_plus";
-        else if (priceId === "price_keeper_pro") tier = "keeper_pro";
+        for (const [tierKey, cfg] of Object.entries(TIER_PRICES)) {
+          if (cfg.priceId && priceId === cfg.priceId) {
+            tier = tierKey;
+            break;
+          }
+        }
 
         const periodEnd = subscription.current_period_end * 1000;
 

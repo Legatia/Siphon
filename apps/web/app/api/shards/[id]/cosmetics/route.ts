@@ -4,8 +4,9 @@ import type { CosmeticSlots } from "@siphon/core";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: shardId } = await params;
   try {
     const body = await request.json();
     const { cosmeticSlots, ownerId } = body as {
@@ -36,7 +37,7 @@ export async function PUT(
     // Verify shard exists and belongs to the user
     const shard = db
       .prepare("SELECT id, owner_id FROM shards WHERE id = ?")
-      .get(params.id) as { id: string; owner_id: string } | undefined;
+      .get(shardId) as { id: string; owner_id: string } | undefined;
 
     if (!shard) {
       return NextResponse.json(
@@ -84,7 +85,7 @@ export async function PUT(
 
     db.prepare(
       "UPDATE shards SET cosmetic_slots_json = ? WHERE id = ?"
-    ).run(JSON.stringify(fullSlots), params.id);
+    ).run(JSON.stringify(fullSlots), shardId);
 
     return NextResponse.json({
       success: true,

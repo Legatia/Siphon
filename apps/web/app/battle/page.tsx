@@ -146,23 +146,7 @@ export default function BattlePage() {
 
     setSearching(true);
     try {
-      const stake = parseFloat(stakeAmount) || 0;
-
-      // For staked battles, create the escrow on-chain first
-      let escrowTxHash: string | undefined;
-      if (stake > 0) {
-        const walletClient = getWalletClient();
-        if (!walletClient) {
-          console.error("No wallet client available");
-          setSearching(false);
-          return;
-        }
-
-        // Note: on-chain escrow happens when a direct battle is created.
-        // For matchmaking, the escrow will be created when the match is found
-        // and the battle is formed. This stores the intent.
-      }
-
+      // Matchmaking always uses 0 stake (staked battles require direct creation)
       const res = await fetch("/api/battles/matchmaking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,7 +154,7 @@ export default function BattlePage() {
           shardId: selectedShardId,
           ownerId: address,
           mode: selectedMode,
-          stakeAmount: stake,
+          stakeAmount: 0,
         }),
       });
 

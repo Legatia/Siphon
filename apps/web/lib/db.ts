@@ -224,10 +224,40 @@ function migrateSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_loans_state ON loans(state);
     CREATE INDEX IF NOT EXISTS idx_loans_shard ON loans(shard_id);
 
+    CREATE TABLE IF NOT EXISTS bounties (
+      id TEXT PRIMARY KEY,
+      bounty_id_hex TEXT NOT NULL,
+      poster TEXT NOT NULL,
+      claimant TEXT,
+      shard_or_swarm_id TEXT,
+      reward TEXT NOT NULL,
+      description TEXT NOT NULL,
+      deadline INTEGER NOT NULL,
+      state TEXT NOT NULL DEFAULT 'Open',
+      tx_hash TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS marketplace_listings (
+      id TEXT PRIMARY KEY,
+      shard_id TEXT NOT NULL,
+      seller TEXT NOT NULL,
+      price TEXT NOT NULL,
+      shard_name TEXT,
+      shard_species TEXT,
+      state TEXT NOT NULL DEFAULT 'active',
+      tx_hash TEXT,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_battles_status ON battles(status);
     CREATE INDEX IF NOT EXISTS idx_matchmaking_mode ON matchmaking_queue(mode);
     CREATE INDEX IF NOT EXISTS idx_cosmetic_inv_owner ON cosmetic_inventory(owner_id);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bounties_state ON bounties(state);
+    CREATE INDEX IF NOT EXISTS idx_bounties_poster ON bounties(poster);
+    CREATE INDEX IF NOT EXISTS idx_marketplace_state ON marketplace_listings(state);
+    CREATE INDEX IF NOT EXISTS idx_marketplace_seller ON marketplace_listings(seller);
   `);
 }
 

@@ -3,12 +3,13 @@ import { getDb } from "@/lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const db = getDb();
   const row = db
     .prepare("SELECT * FROM cosmetics WHERE id = ?")
-    .get(params.id) as Record<string, unknown> | undefined;
+    .get(id) as Record<string, unknown> | undefined;
 
   if (!row) {
     return NextResponse.json(

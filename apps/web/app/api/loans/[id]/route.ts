@@ -43,19 +43,42 @@ export async function PATCH(
     let loan;
 
     switch (action) {
-      case "fund":
+      case "fund": {
         if (!lender) {
           return NextResponse.json(
             { error: "Lender address required" },
             { status: 400 }
           );
         }
+        // Verify the caller is the lender (prevent spoofing lender address)
+        if (caller && caller.toLowerCase() !== lender.toLowerCase()) {
+          return NextResponse.json(
+            { error: "Caller does not match lender address" },
+            { status: 403 }
+          );
+        }
         loan = fundLoan(id, lender, txHash);
         break;
+      }
 
-      case "repay":
+      case "repay": {
+        // Verify the caller is the borrower
+        const loanToRepay = getLoan(id);
+        if (!loanToRepay) {
+          return NextResponse.json(
+            { error: "Loan not found" },
+            { status: 404 }
+          );
+        }
+        if (!caller || caller.toLowerCase() !== loanToRepay.borrower.toLowerCase()) {
+          return NextResponse.json(
+            { error: "Only the borrower can repay this loan" },
+            { status: 403 }
+          );
+        }
         loan = repayLoan(id, txHash);
         break;
+      }
 
       case "liquidate": {
         // Verify the caller is the lender

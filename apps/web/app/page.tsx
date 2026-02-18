@@ -13,6 +13,7 @@ export default function Dashboard() {
   const { address, isConnected } = useAccount();
   const [shards, setShards] = useState<Shard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [battlesWon, setBattlesWon] = useState(0);
 
   useEffect(() => {
     const ownerId = address || "anonymous";
@@ -22,6 +23,23 @@ export default function Dashboard() {
         setShards(data);
         setLoading(false);
       });
+
+    if (address) {
+      fetch(`/api/battles?ownerId=${address}`)
+        .then((r) => r.json())
+        .then((battles) => {
+          const wins = battles.filter(
+            (b: any) =>
+              b.status === "completed" &&
+              ((b.winnerId === b.challenger?.shardId &&
+                b.challenger?.keeperId?.toLowerCase() === address.toLowerCase()) ||
+                (b.winnerId === b.defender?.shardId &&
+                  b.defender?.keeperId?.toLowerCase() === address.toLowerCase()))
+          ).length;
+          setBattlesWon(wins);
+        })
+        .catch(() => {});
+    }
   }, [address]);
 
   return (
@@ -81,8 +99,8 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-ghost font-mono">—</div>
-            <p className="text-xs text-ghost mt-1">Coming soon</p>
+            <div className="text-3xl font-bold text-siphon-teal font-mono">{battlesWon}</div>
+            <p className="text-xs text-ghost mt-1">All time</p>
           </CardContent>
         </Card>
       </div>

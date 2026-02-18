@@ -16,10 +16,37 @@ contract SiphonIdentity {
     mapping(bytes32 => uint256) public genomeToToken;
     mapping(address => uint256[]) public ownerTokens;
 
+    address public governance;
+    mapping(address => bool) public approvedArbiters;
+
     event AgentMinted(uint256 indexed tokenId, bytes32 indexed genomeHash, address indexed owner);
     event ReputationUpdated(uint256 indexed tokenId, int256 delta, int256 newReputation);
     event ValidationAdded(uint256 indexed tokenId, address indexed validator, bool result);
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event ArbiterApproved(address indexed arbiter);
+    event ArbiterRemoved(address indexed arbiter);
+
+    modifier onlyArbiter() {
+        require(approvedArbiters[msg.sender] || msg.sender == governance, "Not authorized arbiter");
+        _;
+    }
+
+    constructor() {
+        governance = msg.sender;
+        approvedArbiters[msg.sender] = true;
+    }
+
+    function approveArbiter(address arbiter) external {
+        require(msg.sender == governance, "Not governance");
+        approvedArbiters[arbiter] = true;
+        emit ArbiterApproved(arbiter);
+    }
+
+    function removeArbiter(address arbiter) external {
+        require(msg.sender == governance, "Not governance");
+        approvedArbiters[arbiter] = false;
+        emit ArbiterRemoved(arbiter);
+    }
 
     function mintAgent(bytes32 genomeHash) external returns (uint256) {
         require(genomeToToken[genomeHash] == 0, "Genome already minted");
@@ -45,7 +72,7 @@ contract SiphonIdentity {
         return tokenId;
     }
 
-    function updateReputation(uint256 tokenId, int256 delta) external {
+    function updateReputation(uint256 tokenId, int256 delta) external onlyArbiter {
         require(agents[tokenId].mintedAt > 0, "Token does not exist");
 
         agents[tokenId].reputation += delta;
@@ -58,7 +85,7 @@ contract SiphonIdentity {
         return agents[tokenId].reputation;
     }
 
-    function addValidation(uint256 tokenId, bool result, string calldata evidence) external {
+    function addValidation(uint256 tokenId, bool result, string calldata evidence) external onlyArbiter {
         require(agents[tokenId].mintedAt > 0, "Token does not exist");
 
         agents[tokenId].validationCount++;

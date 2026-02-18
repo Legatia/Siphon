@@ -12,7 +12,7 @@ contract ShardValuation {
     struct Attestation {
         uint256 level;       // 1-100
         uint256 elo;         // 800-3000 typical
-        uint256 statsSum;    // sum of 5 genome-derived stats (5-40 range)
+        uint256 statsSum;    // sum of 5 genome-derived stats (50-115 each, 265-575 total)
         uint256 timestamp;
         address attestedBy;
     }
@@ -91,7 +91,7 @@ contract ShardValuation {
 
         require(level >= 1 && level <= 100, "Invalid level");
         require(elo >= 100 && elo <= 5000, "Invalid ELO");
-        require(statsSum <= 200, "Invalid stats sum");
+        require(statsSum <= 600, "Invalid stats sum");
 
         attestations[shardId] = Attestation({
             level: level,

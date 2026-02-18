@@ -5,10 +5,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const battle = getBattleById(params.id);
+    const battle = getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -31,7 +32,7 @@ export async function POST(
       );
     }
 
-    const completed = await completeBattle(params.id);
+    const completed = await completeBattle(id);
     return NextResponse.json(completed);
   } catch (error) {
     const message =

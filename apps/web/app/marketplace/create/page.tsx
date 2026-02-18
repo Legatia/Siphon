@@ -223,7 +223,7 @@ function CosmeticCreatorForm() {
 
 export default function CreateCosmeticPage() {
   return (
-    <SubscriptionGate requiredTier="keeper_pro">
+    <SubscriptionGate requiredTier="keeper">
       <CosmeticCreatorForm />
     </SubscriptionGate>
   );

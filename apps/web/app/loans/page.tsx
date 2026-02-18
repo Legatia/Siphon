@@ -30,6 +30,22 @@ import {
   SHARD_VALUATION_ADDRESS,
 } from "@/lib/contracts";
 
+/** Retry a fetch call up to 3 times with exponential backoff (for DB updates after on-chain tx). */
+async function retryFetch(url: string, init: RequestInit, retries = 3): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok) return res;
+      // Non-retryable client errors
+      if (res.status >= 400 && res.status < 500) return res;
+    } catch (err) {
+      if (i === retries - 1) throw err;
+    }
+    await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+  }
+  return fetch(url, init); // final attempt
+}
+
 function formatEth(wei: string): string {
   const n = Number(BigInt(wei)) / 1e18;
   return n.toFixed(4);
@@ -118,10 +134,10 @@ function LoanCard({
         await publicClient.waitForTransactionReceipt({ hash });
         txHash = hash;
 
-        await fetch(`/api/loans/${loan.id}`, {
+        await retryFetch(`/api/loans/${loan.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "fund", lender: address, txHash }),
+          body: JSON.stringify({ action: "fund", lender: address, caller: address, txHash }),
         });
       } else if (action === "repay") {
         const repayAmount = await publicClient.readContract({
@@ -142,10 +158,10 @@ function LoanCard({
         await publicClient.waitForTransactionReceipt({ hash });
         txHash = hash;
 
-        await fetch(`/api/loans/${loan.id}`, {
+        await retryFetch(`/api/loans/${loan.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "repay", txHash }),
+          body: JSON.stringify({ action: "repay", caller: address, txHash }),
         });
       } else if (action === "liquidate") {
         const hash = await walletClient.writeContract({
@@ -158,7 +174,7 @@ function LoanCard({
         await publicClient.waitForTransactionReceipt({ hash });
         txHash = hash;
 
-        await fetch(`/api/loans/${loan.id}`, {
+        await retryFetch(`/api/loans/${loan.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "liquidate", caller: address, txHash }),
@@ -174,7 +190,7 @@ function LoanCard({
         await publicClient.waitForTransactionReceipt({ hash });
         txHash = hash;
 
-        await fetch(`/api/loans/${loan.id}`, {
+        await retryFetch(`/api/loans/${loan.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "cancel", caller: address, txHash }),
@@ -391,9 +407,21 @@ function CreateLoanForm({
       const durationSec = parseInt(durationDays) * 86400;
       const shardIdBytes = idToBytes32(shardId);
 
-      // 1. Read on-chain valuation for real collateral value
+      // 1. Check attestation and read on-chain valuation
       let collateralValue: bigint;
       try {
+        const hasAttestation = (await publicClient.readContract({
+          address: SHARD_VALUATION_ADDRESS as `0x${string}`,
+          abi: SHARD_VALUATION_ABI,
+          functionName: "hasValidAttestation",
+          args: [shardIdBytes],
+        })) as boolean;
+
+        if (!hasAttestation) {
+          // Auto-attest via server if no valid attestation
+          await fetch(`/api/shards/${shardId}/attest`, { method: "POST" });
+        }
+
         collateralValue = (await publicClient.readContract({
           address: SHARD_VALUATION_ADDRESS as `0x${string}`,
           abi: SHARD_VALUATION_ABI,
@@ -405,15 +433,23 @@ function CreateLoanForm({
         collateralValue = principalWei;
       }
 
-      // 2. Approve the LoanVault as a locker on ShardRegistry
-      const approveHash = await walletClient.writeContract({
-        account: address as `0x${string}`,
+      // 2. Approve the LoanVault as a locker on ShardRegistry (skip if already approved)
+      const isApproved = await publicClient.readContract({
         address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
         abi: SHARD_REGISTRY_LOCK_ABI,
-        functionName: "approveLock",
-        args: [LOAN_VAULT_ADDRESS as `0x${string}`],
+        functionName: "approvedLockers",
+        args: [address as `0x${string}`, LOAN_VAULT_ADDRESS as `0x${string}`],
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      if (!isApproved) {
+        const approveHash = await walletClient.writeContract({
+          account: address as `0x${string}`,
+          address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+          abi: SHARD_REGISTRY_LOCK_ABI,
+          functionName: "approveLock",
+          args: [LOAN_VAULT_ADDRESS as `0x${string}`],
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
 
       // 3. Generate a loanId (bytes32 from random UUID)
       const loanId = crypto.randomUUID();
@@ -435,8 +471,8 @@ function CreateLoanForm({
       });
       await publicClient.waitForTransactionReceipt({ hash: createHash });
 
-      // 5. Record in SQLite
-      await fetch("/api/loans", {
+      // 5. Record in SQLite (retry on failure — on-chain tx already succeeded)
+      await retryFetch("/api/loans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

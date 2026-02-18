@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const battle = getBattleById(params.id);
+    const battle = getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -25,8 +26,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: battleId } = await params;
   try {
     const body = await request.json();
     const { round, shardId, response } = body;
@@ -38,7 +40,7 @@ export async function PUT(
       );
     }
 
-    const battle = getBattleById(params.id);
+    const battle = getBattleById(battleId);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -90,7 +92,7 @@ export async function PUT(
     const db = getDb();
     db.prepare("UPDATE battles SET rounds_json = ? WHERE id = ?").run(
       JSON.stringify(battle.rounds),
-      params.id
+      battleId
     );
 
     return NextResponse.json(battle);

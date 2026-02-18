@@ -15,23 +15,6 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDb();
 
-    // Ensure table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS bounties (
-        id TEXT PRIMARY KEY,
-        bounty_id_hex TEXT NOT NULL,
-        poster TEXT NOT NULL,
-        claimant TEXT,
-        shard_or_swarm_id TEXT,
-        reward TEXT NOT NULL,
-        description TEXT NOT NULL,
-        deadline INTEGER NOT NULL,
-        state TEXT NOT NULL DEFAULT 'Open',
-        tx_hash TEXT,
-        created_at INTEGER NOT NULL
-      )
-    `);
-
     let bounties;
     if (state) {
       bounties = db
@@ -66,23 +49,6 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
 
-    // Ensure table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS bounties (
-        id TEXT PRIMARY KEY,
-        bounty_id_hex TEXT NOT NULL,
-        poster TEXT NOT NULL,
-        claimant TEXT,
-        shard_or_swarm_id TEXT,
-        reward TEXT NOT NULL,
-        description TEXT NOT NULL,
-        deadline INTEGER NOT NULL,
-        state TEXT NOT NULL DEFAULT 'Open',
-        tx_hash TEXT,
-        created_at INTEGER NOT NULL
-      )
-    `);
-
     const id = crypto.randomUUID();
     const now = Date.now();
 
@@ -96,4 +62,93 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Failed to create bounty";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/**
+ * PATCH /api/bounties — Update bounty state (claim/complete/dispute/cancel)
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { bountyId, action, caller, shardOrSwarmId } = body;
+
+    if (!bountyId || !action) {
+      return NextResponse.json(
+        { error: "Missing bountyId or action" },
+        { status: 400 }
+      );
+    }
+
+    const db = getDb();
+    const bounty = db
+      .prepare("SELECT * FROM bounties WHERE id = ?")
+      .get(bountyId) as BountyRow | undefined;
+
+    if (!bounty) {
+      return NextResponse.json({ error: "Bounty not found" }, { status: 404 });
+    }
+
+    switch (action) {
+      case "claim": {
+        if (bounty.state !== "Open") {
+          return NextResponse.json({ error: "Bounty is not open" }, { status: 400 });
+        }
+        db.prepare("UPDATE bounties SET state = 'Claimed', claimant = ?, shard_or_swarm_id = ? WHERE id = ?")
+          .run(caller, shardOrSwarmId ?? null, bountyId);
+        break;
+      }
+      case "complete": {
+        if (bounty.state !== "Claimed") {
+          return NextResponse.json({ error: "Bounty is not claimed" }, { status: 400 });
+        }
+        if (!caller || caller.toLowerCase() !== bounty.poster.toLowerCase()) {
+          return NextResponse.json({ error: "Only the poster can complete a bounty" }, { status: 403 });
+        }
+        db.prepare("UPDATE bounties SET state = 'Completed' WHERE id = ?").run(bountyId);
+        break;
+      }
+      case "dispute": {
+        if (bounty.state !== "Claimed") {
+          return NextResponse.json({ error: "Bounty is not claimed" }, { status: 400 });
+        }
+        if (!caller || (caller.toLowerCase() !== bounty.poster.toLowerCase() && caller.toLowerCase() !== bounty.claimant?.toLowerCase())) {
+          return NextResponse.json({ error: "Only the poster or claimant can dispute" }, { status: 403 });
+        }
+        db.prepare("UPDATE bounties SET state = 'Disputed' WHERE id = ?").run(bountyId);
+        break;
+      }
+      case "cancel": {
+        if (bounty.state !== "Open") {
+          return NextResponse.json({ error: "Can only cancel open bounties" }, { status: 400 });
+        }
+        if (!caller || caller.toLowerCase() !== bounty.poster.toLowerCase()) {
+          return NextResponse.json({ error: "Only the poster can cancel" }, { status: 403 });
+        }
+        db.prepare("UPDATE bounties SET state = 'Cancelled' WHERE id = ?").run(bountyId);
+        break;
+      }
+      default:
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
+
+    const updated = db.prepare("SELECT * FROM bounties WHERE id = ?").get(bountyId);
+    return NextResponse.json(updated);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update bounty";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+interface BountyRow {
+  id: string;
+  bounty_id_hex: string;
+  poster: string;
+  claimant?: string;
+  shard_or_swarm_id?: string;
+  reward: string;
+  description: string;
+  deadline: number;
+  state: string;
+  tx_hash?: string;
+  created_at: number;
 }

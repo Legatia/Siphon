@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getShardById } from "@/lib/shard-engine";
-import { generateBattleJudgment } from "@/lib/llm";
+import { generateBattleJudgment, generateShardResponse } from "@/lib/llm";
 import {
   generateBattlePrompt,
   scoreBattleRound,
@@ -109,13 +109,13 @@ export function createBattle(
     mode,
     status: BattleStatus.Active,
     challenger: {
-      keeperId: challengerOwnerId,
+      keeperId: challengerOwnerId.toLowerCase(),
       shardId: challengerShardId,
       eloRating: challengerShard.eloRating,
       eloDelta: 0,
     },
     defender: {
-      keeperId: defenderOwnerId,
+      keeperId: defenderOwnerId.toLowerCase(),
       shardId: defenderShardId,
       eloRating: defenderShard.eloRating,
       eloDelta: 0,
@@ -150,11 +150,26 @@ export async function executeBattleRound(
   const battle = rowToBattle(row);
   const prompt = generateBattlePrompt(battle.mode, round);
 
+  // Load shard data for AI response generation
+  const challengerShard = getShardById(battle.challenger.shardId);
+  const defenderShard = getShardById(battle.defender.shardId);
+
+  // Generate AI responses for both shards
+  let challengerResponse = "";
+  let defenderResponse = "";
+
+  if (challengerShard) {
+    challengerResponse = await generateShardResponse(challengerShard, [], prompt);
+  }
+  if (defenderShard) {
+    defenderResponse = await generateShardResponse(defenderShard, [], prompt);
+  }
+
   const battleRound: BattleRound = {
     roundNumber: round,
     prompt,
-    challengerResponse: "",
-    defenderResponse: "",
+    challengerResponse,
+    defenderResponse,
     scores: { challenger: 0, defender: 0 },
   };
 
@@ -295,7 +310,10 @@ export function getBattlesForOwner(ownerId: string): Battle[] {
        WHERE challenger_json LIKE ? OR defender_json LIKE ?
        ORDER BY created_at DESC`
     )
-    .all(`%"keeperId":"${ownerId}"%`, `%"keeperId":"${ownerId}"%`);
+    .all(
+      `%"keeperId":"${ownerId.toLowerCase()}"%`,
+      `%"keeperId":"${ownerId.toLowerCase()}"%`
+    );
   return rows.map(rowToBattle);
 }
 

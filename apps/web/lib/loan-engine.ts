@@ -62,9 +62,20 @@ export function repayLoan(loanId: string, txHash?: string): Loan {
 export function liquidateLoan(loanId: string, txHash?: string): Loan {
   const db = getDb();
 
+  // Get loan before updating to know the lender and shard
+  const existing = db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId) as any;
+
   db.prepare(
     `UPDATE loans SET state = ?, liquidate_tx_hash = ? WHERE id = ? AND state = ?`
   ).run(LoanState.Liquidated, txHash ?? null, loanId, LoanState.Funded);
+
+  // On-chain, seize() transfers shard ownership to the lender — mirror in DB
+  if (existing?.lender && existing?.shard_id) {
+    db.prepare("UPDATE shards SET owner_id = ? WHERE id = ?").run(
+      existing.lender,
+      existing.shard_id
+    );
+  }
 
   return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId));
 }
