@@ -1,5 +1,7 @@
-import { createPublicClient, createWalletClient, http, custom } from "viem";
+import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
+import { getWalletClient as wagmiGetWalletClient } from "wagmi/actions";
+import { config } from "./wagmi";
 
 export const SHARD_REGISTRY_ABI = [
   {
@@ -933,12 +935,16 @@ export const publicClient = createPublicClient({
   transport: http(),
 });
 
-export function getWalletClient() {
-  if (typeof window === "undefined" || !(window as any).ethereum) return null;
-  return createWalletClient({
-    chain: baseSepolia,
-    transport: custom((window as any).ethereum),
-  });
+/**
+ * Returns the wagmi-managed wallet client for the active connector.
+ * Works with injected wallets (MetaMask), Coinbase Wallet, AND Smart Wallet.
+ */
+export async function getWalletClient() {
+  try {
+    return await wagmiGetWalletClient(config);
+  } catch {
+    return null;
+  }
 }
 
 /** Convert a hex/UUID string to 0x-prefixed 32-byte hex for contract calls. */

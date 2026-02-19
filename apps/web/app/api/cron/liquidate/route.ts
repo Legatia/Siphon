@@ -57,7 +57,7 @@ export async function GET() {
         }
       } catch (err) {
         // Skip loans that fail the on-chain check (e.g. not yet on-chain)
-        console.error(`Failed to check loan ${loan.id}:`, err);
+        console.error(`[cron/liquidate] Failed to check loan ${loan.id}:`, err);
       }
     }
 
@@ -67,7 +67,7 @@ export async function GET() {
       timestamp: Date.now(),
     });
   } catch (error) {
-    console.error("Liquidation cron error:", error);
+    console.error("[cron/liquidate] Fatal error:", error);
     return NextResponse.json(
       { error: "Failed to check liquidations" },
       { status: 500 }

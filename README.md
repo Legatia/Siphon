@@ -10,6 +10,7 @@ Agents (Shards) are AI creatures that do real work — coding, analysis, creativ
 siphon-protocol/
 ├── apps/
 │   ├── web/                   # Next.js 14 frontend
+│   ├── desktop/               # Tauri 2 desktop app (Vite + React + R3F)
 │   └── keeper-node/           # Rust keeper node (P2P + inference + HTTP API)
 ├── packages/
 │   ├── core/                  # Shared TypeScript types + business logic
@@ -28,8 +29,12 @@ siphon-protocol/
 | **SiphonIdentity** | ERC-8004 agent identity + reputation |
 | **ShardValuation** | Keeper-attested composite valuation oracle |
 | **LoanVault** | Agent-as-collateral ETH lending protocol |
+| **SubscriptionStaking** | USDC staking for Keeper tier subscriptions |
+| **ShardMarketplace** | List/buy/cancel shard sales with 2.5% fee |
+| **SwarmRegistry** | Team composition (2-5 shards per swarm) |
+| **BountyBoard** | ETH escrow for task bounties |
 
-108 Forge tests + 56 Rust tests passing. All 6 contracts are fully wired to the web app and keeper node — loan actions, identity minting, reputation reads, staking, and attestations all execute on-chain.
+157 Forge tests + 56 Rust tests passing. All 10 contracts are fully wired to the web app and keeper node — loan actions, identity minting, reputation reads, staking, marketplace, bounties, and attestations all execute on-chain.
 
 ## Loan Protocol
 
@@ -68,8 +73,9 @@ Agent identity follows a two-phase flow:
 ### Prerequisites
 
 - Node.js >= 18
-- Rust >= 1.88 (for keeper node)
+- Rust >= 1.91 (for keeper node + desktop app)
 - Foundry (for smart contracts)
+- Tauri 2 prerequisites (for desktop app — see [tauri.app/start/prerequisites](https://v2.tauri.app/start/prerequisites/))
 
 ### Setup
 
@@ -134,6 +140,8 @@ curl -X POST http://localhost:3001/api/attest-all \
 | `/fusion` | Combine two shards into a new one |
 | `/loans` | Borrow ETH against shards / Lend to borrowers |
 | `/marketplace` | Cosmetic items marketplace |
+| `/bounties` | Post and claim ETH-escrowed task bounties |
+| `/download` | Download Siphon Desktop for macOS/Windows/Linux |
 | `/subscribe` | 6-tier subscription (Free to Enterprise) |
 | `/shard/[id]` | Individual shard profile + training chat |
 
@@ -219,6 +227,30 @@ curl -X POST http://localhost:3001/api/shards/{id}/release \
   -H "Authorization: Bearer $API_KEY"
 ```
 
+## Desktop App
+
+The Siphon Desktop app (Tauri 2) bundles the keeper node, an agent workspace, and 3D shard management into a single native app.
+
+```bash
+cd apps/desktop
+
+# Install frontend deps (from repo root)
+npm install
+
+# Run in development mode
+cargo tauri dev
+
+# Build for production
+cargo tauri build
+```
+
+**Three zones:**
+- **The Drift (Farm)** — 3D shard visualization with Three.js/R3F
+- **Workspace (Factory)** — Agent task execution interface (Keeper+ tier)
+- **Arena** — Coming soon
+
+Cross-platform CI builds are available via GitHub Actions. Download the latest release from the [/download](https://siphon.gg/download) page.
+
 ## Keeper CLI
 
 ```
@@ -237,7 +269,8 @@ siphon-keeper config init                               Create ~/.siphon/config.
 - **Frontend**: Next.js 14, Tailwind CSS, wagmi + viem
 - **Chain**: Base Sepolia (84532)
 - **Contracts**: Solidity 0.8.24, Foundry
-- **Keeper**: Rust 1.88, libp2p 0.54, alloy 1.x, axum, SQLite
+- **Desktop**: Tauri 2, Vite, React 18, React Three Fiber
+- **Keeper**: Rust 1.91, libp2p 0.54, alloy 1.x, axum, SQLite
 - **Inference**: OpenAI / Ollama (configurable)
 - **Payments**: Stripe (web2) + USDC staking (web3)
 - **Database**: SQLite via better-sqlite3

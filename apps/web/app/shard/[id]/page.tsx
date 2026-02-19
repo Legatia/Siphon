@@ -109,7 +109,7 @@ export default function ShardDetailPage() {
       }
 
       // Phase 2: Execute on-chain mint via wallet
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet connected");
 
       const hash = await walletClient.writeContract({

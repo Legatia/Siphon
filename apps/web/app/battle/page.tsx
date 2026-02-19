@@ -16,6 +16,7 @@ import {
   BATTLE_SETTLEMENT_ABI,
   BATTLE_SETTLEMENT_ADDRESS,
   getWalletClient,
+  publicClient,
   idToBytes32,
 } from "@/lib/contracts";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -36,6 +37,7 @@ import {
   Clock,
   Search,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const MODE_DETAILS: Record<
   BattleMode,
@@ -118,6 +120,7 @@ export default function BattlePage() {
       if (battlesRes.ok) setBattles(await battlesRes.json());
       if (queueRes.ok) setQueueEntries(await queueRes.json());
     } catch (err) {
+      toast.error("Failed to load battle data");
       console.error("Failed to fetch battle data:", err);
     } finally {
       setLoading(false);
@@ -165,6 +168,7 @@ export default function BattlePage() {
         await fetchData();
       }
     } catch (err) {
+      toast.error("Failed to join matchmaking queue");
       console.error("Failed to join queue:", err);
     } finally {
       setSearching(false);
@@ -183,7 +187,7 @@ export default function BattlePage() {
 
     setSearching(true);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const battleId = crypto.randomUUID();
@@ -198,6 +202,9 @@ export default function BattlePage() {
         value: parseEther(stakeAmount),
         account: address,
       });
+
+      // Wait for on-chain confirmation before persisting
+      await publicClient.waitForTransactionReceipt({ hash });
 
       // POST to API with escrow tx hash
       await fetch("/api/battles", {
@@ -216,6 +223,7 @@ export default function BattlePage() {
 
       await fetchData();
     } catch (err) {
+      toast.error("Failed to create staked battle");
       console.error("Failed to create staked battle:", err);
     } finally {
       setSearching(false);
@@ -231,6 +239,7 @@ export default function BattlePage() {
       });
       setQueueEntries((prev) => prev.filter((e) => e.id !== entryId));
     } catch (err) {
+      toast.error("Failed to leave queue");
       console.error("Failed to leave queue:", err);
     }
   };
@@ -281,12 +290,12 @@ export default function BattlePage() {
       )}
 
       <Tabs.Root defaultValue="find" className="space-y-4">
-        <Tabs.List className="flex border-b border-ghost/10">
+        <Tabs.List className="flex border-b border-ghost/10 overflow-x-auto scrollbar-hide">
           <Tabs.Trigger
             value="find"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-ghost transition-colors border-b-2 border-transparent data-[state=active]:text-siphon-teal data-[state=active]:border-siphon-teal hover:text-foam"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium text-ghost transition-colors border-b-2 border-transparent data-[state=active]:text-siphon-teal data-[state=active]:border-siphon-teal hover:text-foam whitespace-nowrap"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-4 w-4 shrink-0" />
             Find Match
           </Tabs.Trigger>
           <Tabs.Trigger

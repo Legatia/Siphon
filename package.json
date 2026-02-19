@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
+    "dev:desktop": "npm run tauri -- dev --workspace=apps/desktop",
     "build": "npm run build --workspace=packages/core && npm run build --workspace=apps/web",
+    "build:desktop": "npm run tauri -- build --workspace=apps/desktop",
     "lint": "npm run lint --workspace=apps/web"
   },
   "engines": {

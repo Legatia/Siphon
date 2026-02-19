@@ -304,16 +304,18 @@ export function getBattleById(battleId: string): Battle | null {
 
 export function getBattlesForOwner(ownerId: string): Battle[] {
   const db = getDb();
+  // Sanitize LIKE special chars and validate address format
+  const sanitized = ownerId.toLowerCase().replace(/[%_\\]/g, "");
+  if (!/^0x[a-f0-9]{40}$/.test(sanitized)) return [];
+
+  const pattern = `%"keeperId":"${sanitized}"%`;
   const rows = db
     .prepare(
       `SELECT * FROM battles
        WHERE challenger_json LIKE ? OR defender_json LIKE ?
        ORDER BY created_at DESC`
     )
-    .all(
-      `%"keeperId":"${ownerId.toLowerCase()}"%`,
-      `%"keeperId":"${ownerId.toLowerCase()}"%`
-    );
+    .all(pattern, pattern);
   return rows.map(rowToBattle);
 }
 

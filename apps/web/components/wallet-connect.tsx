@@ -4,6 +4,7 @@ import { useAccount, useConnect, useDisconnect, useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Wallet, LogOut, Loader2 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 
 export function WalletConnect() {
   const { address, isConnected } = useAccount();
@@ -50,8 +51,10 @@ export function WalletConnect() {
         setSessionAddress(address.toLowerCase());
       }
     } catch (err) {
+      toast.error("Sign-in failed. Disconnecting wallet.");
       console.error("SIWE sign-in failed:", err);
       didSignRef.current = false;
+      disconnect();
     } finally {
       setSigningIn(false);
     }

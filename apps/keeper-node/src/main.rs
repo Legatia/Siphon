@@ -1,17 +1,4 @@
-mod agent_loop;
-mod api;
-mod capture;
-mod chain;
-mod config;
-mod db;
-mod dht;
-mod executor;
-mod gossip;
-mod inference;
-mod keeper;
-mod monitor;
-mod node;
-mod shard;
+use siphon_keeper::{api, chain, config, db, gossip, keeper, monitor, node, shard};
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;

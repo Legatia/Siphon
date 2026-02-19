@@ -1,0 +1,3 @@
+[workspace]
+members = ["apps/keeper-node", "apps/desktop/src-tauri"]
+resolver = "2"

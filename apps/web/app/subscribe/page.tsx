@@ -26,6 +26,7 @@ import {
   getWalletClient,
   publicClient,
 } from "@/lib/contracts";
+import { toast } from "sonner";
 
 const TIER_ICONS: Record<string, React.ReactNode> = {
   free_trainer: <Zap className="h-6 w-6" />,
@@ -109,6 +110,7 @@ export default function SubscribePage() {
         window.location.href = data.url;
       }
     } catch (error) {
+      toast.error("Checkout failed");
       console.error("Checkout error:", error);
     } finally {
       setCheckoutLoading(null);
@@ -133,6 +135,7 @@ export default function SubscribePage() {
         window.location.href = data.url;
       }
     } catch (error) {
+      toast.error("Failed to open billing portal");
       console.error("Portal error:", error);
     }
   };
@@ -147,7 +150,7 @@ export default function SubscribePage() {
 
     setStakingLoading(tierKey);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet connected");
 
       const amount = parseUnits(
@@ -198,8 +201,10 @@ export default function SubscribePage() {
           tier: data.tier,
           stakeAmount: data.stakeAmount,
         }));
+        toast.success("USDC staked successfully!");
       }
     } catch (error) {
+      toast.error("Staking failed");
       console.error("Staking error:", error);
     } finally {
       setStakingLoading(null);

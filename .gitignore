@@ -9,6 +9,7 @@ out/
 dist/
 
 # Rust
+target/
 apps/keeper-node/target/
 
 # Foundry
@@ -55,6 +56,13 @@ packages/contracts/foundry.lock
 
 # Workspaces (shard execution sandboxes)
 workspaces/
+
+# Tauri / Desktop
+apps/desktop/src-tauri/target/
+apps/desktop/dist/
+
+# GitHub Actions
+.github/workflows/*.bak
 
 # Temporary files
 *.tmp

@@ -29,6 +29,7 @@ import {
   SHARD_VALUATION_ABI,
   SHARD_VALUATION_ADDRESS,
 } from "@/lib/contracts";
+import { toast } from "sonner";
 
 /** Retry a fetch call up to 3 times with exponential backoff (for DB updates after on-chain tx). */
 async function retryFetch(url: string, init: RequestInit, retries = 3): Promise<Response> {
@@ -113,7 +114,7 @@ function LoanCard({
     setError(null);
 
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient || !address) {
         setError("Connect your wallet first");
         return;
@@ -197,8 +198,10 @@ function LoanCard({
         });
       }
 
+      toast.success(`Loan ${action} successful!`);
       onAction();
     } catch (err: any) {
+      toast.error(err?.shortMessage || `Loan ${action} failed`);
       console.error(`Loan action ${action} failed:`, err);
       setError(err?.shortMessage || err?.message || "Transaction failed");
     } finally {
@@ -226,7 +229,7 @@ function LoanCard({
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4 text-sm">
         <div>
           <div className="text-ghost text-xs">Principal</div>
           <div className="text-foam font-mono">{formatEth(loan.principal)} ETH</div>
@@ -361,7 +364,7 @@ function CreateLoanForm({
     setRegistering(true);
     setError(null);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) {
         setError("Connect your wallet first");
         return;
@@ -383,7 +386,9 @@ function CreateLoanForm({
       });
       await publicClient.waitForTransactionReceipt({ hash });
       setNeedsRegistration(false);
+      toast.success("Shard registered on-chain!");
     } catch (err: any) {
+      toast.error("On-chain registration failed");
       console.error("On-chain registration failed:", err);
       setError(err?.shortMessage || err?.message || "Registration failed");
     } finally {
@@ -397,7 +402,7 @@ function CreateLoanForm({
     setError(null);
 
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) {
         setError("Connect your wallet first");
         return;
@@ -487,9 +492,11 @@ function CreateLoanForm({
         }),
       });
 
+      toast.success("Loan listing created!");
       onCreated();
       setShardId("");
     } catch (err: any) {
+      toast.error("Failed to create loan");
       console.error("Failed to create loan:", err);
       setError(err?.shortMessage || err?.message || "Transaction failed");
     } finally {
@@ -522,7 +529,7 @@ function CreateLoanForm({
           </select>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-ghost block mb-1">
               Principal (ETH)
@@ -648,7 +655,7 @@ export default function LoansPage() {
   }, [address]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto py-2 sm:py-8">
       <div className="flex items-center gap-3 mb-6">
         <Landmark className="h-7 w-7 text-siphon-teal" />
         <h1 className="text-2xl font-bold text-foam">Shard Loans</h1>

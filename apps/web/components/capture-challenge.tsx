@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { useAccount } from "wagmi";
 import {
   SHARD_REGISTRY_ABI,
@@ -54,16 +55,31 @@ export function CaptureDialog({
     setFeedback("");
     setTimeLeft(60);
 
-    const res = await fetch("/api/shards/capture", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shardId: shard.id, ownerId }),
-    });
+    try {
+      const res = await fetch("/api/shards/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shardId: shard.id, ownerId }),
+      });
 
-    const data = await res.json();
-    if (data.challenge) {
-      setChallenge(data.challenge);
-      setPhase("challenge");
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errorMsg = data.error || "Failed to start capture";
+        toast.error(errorMsg);
+        setFeedback(errorMsg);
+        setPhase("failure");
+        return;
+      }
+
+      if (data.challenge) {
+        setChallenge(data.challenge);
+        setPhase("challenge");
+      }
+    } catch {
+      toast.error("Connection lost. Check your network and try again.");
+      setFeedback("Connection lost. Check your network and try again.");
+      setPhase("failure");
     }
   }, [shard, ownerId]);
 
@@ -89,6 +105,7 @@ export function CaptureDialog({
     if (!shard || !answer.trim()) return;
     setPhase("submitting");
 
+    try {
     const res = await fetch("/api/shards/capture", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -96,6 +113,15 @@ export function CaptureDialog({
     });
 
     const data = await res.json();
+
+    if (!res.ok) {
+      const errorMsg = data.error || "Capture failed";
+      toast.error(errorMsg);
+      setFeedback(errorMsg);
+      setPhase("failure");
+      return;
+    }
+
     setFeedback(data.feedback);
 
     if (data.success) {
@@ -105,7 +131,7 @@ export function CaptureDialog({
       if (data.needsOnChainRegistration && address) {
         setPhase("registering");
         try {
-          const walletClient = getWalletClient();
+          const walletClient = await getWalletClient();
           if (walletClient && data.shard) {
             const shardIdBytes = idToBytes32(data.shard.id);
             const genomeHash = data.shard.genomeHash as `0x${string}`;
@@ -127,6 +153,11 @@ export function CaptureDialog({
 
       setPhase("success");
     } else {
+      setPhase("failure");
+    }
+    } catch {
+      toast.error("Connection lost. Check your network and try again.");
+      setFeedback("Connection lost. Check your network and try again.");
       setPhase("failure");
     }
   };

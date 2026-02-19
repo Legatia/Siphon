@@ -3,6 +3,14 @@ name = "siphon-keeper"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "siphon_keeper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "siphon-keeper"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }

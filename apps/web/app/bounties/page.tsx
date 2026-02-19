@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   publicClient,
   idToBytes32,
 } from "@/lib/contracts";
+import { toast } from "sonner";
 
 interface BountyRecord {
   id: string;
@@ -77,7 +78,7 @@ export default function BountiesPage() {
       .catch(() => {});
   }, [address]);
 
-  useEffect(() => {
+  const fetchBounties = useCallback(() => {
     fetch("/api/bounties")
       .then((r) => r.json())
       .then((data) => {
@@ -87,12 +88,16 @@ export default function BountiesPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetchBounties();
+  }, [fetchBounties]);
+
   const handlePostBounty = async () => {
     if (!address || !description || !reward) return;
 
     setPosting(true);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const bountyId = crypto.randomUUID();
@@ -132,8 +137,11 @@ export default function BountiesPage() {
         setBounties((prev) => [newBounty, ...prev]);
         setDescription("");
         setReward("");
+        toast.success("Bounty posted!");
+        fetchBounties();
       }
     } catch (error) {
+      toast.error("Failed to post bounty");
       console.error("Post bounty error:", error);
     } finally {
       setPosting(false);
@@ -145,7 +153,7 @@ export default function BountiesPage() {
 
     setClaimingId(bounty.id);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const hash = await walletClient.writeContract({
@@ -173,14 +181,10 @@ export default function BountiesPage() {
         }),
       });
 
-      setBounties((prev) =>
-        prev.map((b) =>
-          b.id === bounty.id
-            ? { ...b, state: "Claimed", claimant: address }
-            : b
-        )
-      );
+      toast.success("Bounty claimed!");
+      fetchBounties();
     } catch (error) {
+      toast.error("Failed to claim bounty");
       console.error("Claim bounty error:", error);
     } finally {
       setClaimingId(null);
@@ -192,7 +196,7 @@ export default function BountiesPage() {
 
     setCompletingId(bounty.id);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const hash = await walletClient.writeContract({
@@ -212,12 +216,10 @@ export default function BountiesPage() {
         body: JSON.stringify({ bountyId: bounty.id, action: "complete", caller: address }),
       });
 
-      setBounties((prev) =>
-        prev.map((b) =>
-          b.id === bounty.id ? { ...b, state: "Completed" } : b
-        )
-      );
+      toast.success("Bounty approved!");
+      fetchBounties();
     } catch (error) {
+      toast.error("Failed to complete bounty");
       console.error("Complete bounty error:", error);
     } finally {
       setCompletingId(null);
@@ -229,7 +231,7 @@ export default function BountiesPage() {
 
     setDisputingId(bounty.id);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const hash = await walletClient.writeContract({
@@ -249,12 +251,10 @@ export default function BountiesPage() {
         body: JSON.stringify({ bountyId: bounty.id, action: "dispute", caller: address }),
       });
 
-      setBounties((prev) =>
-        prev.map((b) =>
-          b.id === bounty.id ? { ...b, state: "Disputed" } : b
-        )
-      );
+      toast.success("Bounty disputed");
+      fetchBounties();
     } catch (error) {
+      toast.error("Failed to dispute bounty");
       console.error("Dispute bounty error:", error);
     } finally {
       setDisputingId(null);
@@ -266,7 +266,7 @@ export default function BountiesPage() {
 
     setCancellingId(bounty.id);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const hash = await walletClient.writeContract({
@@ -286,12 +286,10 @@ export default function BountiesPage() {
         body: JSON.stringify({ bountyId: bounty.id, action: "cancel", caller: address }),
       });
 
-      setBounties((prev) =>
-        prev.map((b) =>
-          b.id === bounty.id ? { ...b, state: "Cancelled" } : b
-        )
-      );
+      toast.success("Bounty cancelled");
+      fetchBounties();
     } catch (error) {
+      toast.error("Failed to cancel bounty");
       console.error("Cancel bounty error:", error);
     } finally {
       setCancellingId(null);

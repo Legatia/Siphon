@@ -6,7 +6,8 @@ import type { WildShard } from "@siphon/core";
 import { DriftMap } from "@/components/drift-map";
 import { CaptureDialog } from "@/components/capture-challenge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { RefreshCw, Compass } from "lucide-react";
 
 export default function DriftPage() {
   const { address } = useAccount();
@@ -28,6 +29,7 @@ export default function DriftPage() {
   }, [loadShards]);
 
   const handleShardClick = (shard: WildShard) => {
+    if (!address) return;
     setSelectedShard(shard);
     setCaptureOpen(true);
   };
@@ -58,6 +60,15 @@ export default function DriftPage() {
 
       <DriftMap shards={wildShards} onShardClick={handleShardClick} />
 
+      {!address && (
+        <Card className="p-4 text-center border-siphon-teal/20">
+          <Compass className="h-8 w-8 text-siphon-teal/30 mx-auto mb-2" />
+          <p className="text-ghost text-sm">
+            Connect your wallet to capture wild Shards.
+          </p>
+        </Card>
+      )}
+
       <div className="text-xs text-ghost text-center">
         {wildShards.length} wild Shards detected in range
       </div>
@@ -70,7 +81,7 @@ export default function DriftPage() {
           setSelectedShard(null);
         }}
         onCaptured={handleCaptured}
-        ownerId={address || "anonymous"}
+        ownerId={address ?? ""}
       />
     </div>
   );

@@ -211,6 +211,17 @@ export default function FusionPage() {
               </Select>
             </div>
 
+            {/* Level warning */}
+            {shardA && shardB && (shardA.level < 15 || shardB.level < 15) && (
+              <div className="px-4 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                <p className="text-xs text-amber-400">
+                  Both shards must be level 15+ to fuse.
+                  {shardA.level < 15 && ` ${shardA.name} is level ${shardA.level}.`}
+                  {shardB.level < 15 && ` ${shardB.name} is level ${shardB.level}.`}
+                </p>
+              </div>
+            )}
+
             {/* Error message */}
             {fusionError && (
               <div className="px-4 py-2 rounded-lg bg-red-500/5 border border-red-500/10">
@@ -222,7 +233,7 @@ export default function FusionPage() {
             <Button
               className="w-full"
               size="lg"
-              disabled={!shardA || !shardB || fusing}
+              disabled={!shardA || !shardB || fusing || (shardA && shardA.level < 15) || (shardB && shardB.level < 15)}
               onClick={handleFuse}
             >
               {fusing ? (

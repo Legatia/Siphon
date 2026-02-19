@@ -6,7 +6,8 @@ import { getShardTypeName, SHARD_TYPE_COLORS, SHARD_TYPE_NAMES } from "@siphon/c
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Send, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -78,6 +79,22 @@ export function TrainingChat({
 
       const data = await res.json();
 
+      if (!res.ok) {
+        // Show specific error (message cap, auth, etc.)
+        const errorMsg = data.error || "Something went wrong";
+        toast.error(errorMsg);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "shard",
+            content: errorMsg,
+            timestamp: Date.now(),
+          },
+        ]);
+        return;
+      }
+
       const shardMsg: Message = {
         id: crypto.randomUUID(),
         role: "shard",
@@ -97,7 +114,7 @@ export function TrainingChat({
         {
           id: crypto.randomUUID(),
           role: "shard",
-          content: "... the deep currents interfere with my response ...",
+          content: "Connection lost. Check your network and try again.",
           timestamp: Date.now(),
         },
       ]);

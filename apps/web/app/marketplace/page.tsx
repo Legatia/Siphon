@@ -33,6 +33,7 @@ import {
   publicClient,
   idToBytes32,
 } from "@/lib/contracts";
+import { toast } from "sonner";
 
 const SLOT_OPTIONS = [
   { label: "All Slots", value: "all" },
@@ -143,8 +144,10 @@ export default function MarketplacePage() {
 
       if (res.ok) {
         setOwnedIds((prev) => new Set([...prev, cosmeticId]));
+        toast.success("Cosmetic purchased!");
       }
     } catch (error) {
+      toast.error("Purchase failed");
       console.error("Purchase error:", error);
     } finally {
       setPurchasing(null);
@@ -156,18 +159,27 @@ export default function MarketplacePage() {
 
     setListingLoading(true);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
-      // First approve the marketplace as locker for this user
-      const approveHash = await walletClient.writeContract({
+      // Check if marketplace is already approved as locker
+      const isApproved = await publicClient.readContract({
         address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
         abi: SHARD_REGISTRY_LOCK_ABI,
-        functionName: "approveLock",
-        args: [SHARD_MARKETPLACE_ADDRESS as `0x${string}`],
-        account: address,
+        functionName: "approvedLockers",
+        args: [address, SHARD_MARKETPLACE_ADDRESS as `0x${string}`],
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+      if (!isApproved) {
+        const approveHash = await walletClient.writeContract({
+          address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+          abi: SHARD_REGISTRY_LOCK_ABI,
+          functionName: "approveLock",
+          args: [SHARD_MARKETPLACE_ADDRESS as `0x${string}`],
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
 
       // Then list the shard
       const shardIdHex = idToBytes32(listShardId);
@@ -212,7 +224,9 @@ export default function MarketplacePage() {
       ]);
       setListShardId("");
       setListPrice("");
+      toast.success("Shard listed!");
     } catch (error) {
+      toast.error("Failed to list shard");
       console.error("List shard error:", error);
     } finally {
       setListingLoading(false);
@@ -224,7 +238,7 @@ export default function MarketplacePage() {
 
     setBuyingId(listing.shardId);
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const shardIdHex = idToBytes32(listing.shardId);
@@ -252,7 +266,9 @@ export default function MarketplacePage() {
       setListings((prev) =>
         prev.filter((l) => l.shardId !== listing.shardId)
       );
+      toast.success("Shard purchased!");
     } catch (error) {
+      toast.error("Failed to buy shard");
       console.error("Buy shard error:", error);
     } finally {
       setBuyingId(null);
@@ -263,7 +279,7 @@ export default function MarketplacePage() {
     if (!address) return;
 
     try {
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
       const shardIdHex = idToBytes32(shardId);
@@ -286,7 +302,9 @@ export default function MarketplacePage() {
       });
 
       setListings((prev) => prev.filter((l) => l.shardId !== shardId));
+      toast.success("Listing cancelled");
     } catch (error) {
+      toast.error("Failed to cancel listing");
       console.error("Cancel listing error:", error);
     }
   };

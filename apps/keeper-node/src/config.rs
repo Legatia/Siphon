@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
 /// Keeper node configuration, loaded from ~/.siphon/config.toml
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     /// JSON-RPC URL for Base Sepolia
     pub rpc_url: String,
@@ -103,7 +103,7 @@ impl Default for Config {
 
 impl Config {
     /// Returns the path to the config file: ~/.siphon/config.toml
-    fn config_path() -> PathBuf {
+    pub fn config_path() -> PathBuf {
         let home = dirs_fallback();
         home.join(".siphon").join("config.toml")
     }
