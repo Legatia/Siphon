@@ -182,9 +182,9 @@ function srgbColor(hex: string) {
 }
 
 function smoothDampVec2(
-  current: THREE.Vector2,
-  target: THREE.Vector2,
-  vel: THREE.Vector2,
+  current: any,
+  target: any,
+  vel: any,
   smoothTime: number,
   maxSpeed: number,
   dt: number,
