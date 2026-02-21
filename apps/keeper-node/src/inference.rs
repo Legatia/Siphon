@@ -122,6 +122,22 @@ struct RawFunctionCall {
     arguments: String, // JSON string
 }
 
+#[derive(Debug, Serialize)]
+struct EmbeddingRequest {
+    model: String,
+    input: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbeddingResponse {
+    data: Vec<EmbeddingData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbeddingData {
+    embedding: Vec<f32>,
+}
+
 // ── Tool definitions (OpenAI function calling) ──────────────────────
 
 /// A tool definition sent in the request to enable function calling.
@@ -332,6 +348,84 @@ pub async fn generate_with_tools(
         .clone()
         .unwrap_or_default();
     Ok(InferenceResult::Text { content })
+}
+
+/// Generate embeddings for a batch of texts. Returns vectors in input order.
+pub async fn embed_texts(
+    config: &InferenceConfig,
+    inputs: &[String],
+) -> Result<Vec<Vec<f32>>, String> {
+    if inputs.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let endpoint = embedding_url_from_chat_url(&config.api_url);
+    let model = embedding_model_for(&config.model);
+    let request_body = EmbeddingRequest {
+        model,
+        input: inputs.to_vec(),
+    };
+
+    let client = Client::new();
+    let mut request = client
+        .post(&endpoint)
+        .header("Content-Type", "application/json");
+
+    if !config.api_key.is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let response = request
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Embedding HTTP request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "unable to read body".to_string());
+        return Err(format!("Embedding API error ({}): {}", status, body));
+    }
+
+    let parsed: EmbeddingResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse embedding response: {}", e))?;
+
+    let vectors = parsed
+        .data
+        .into_iter()
+        .map(|d| d.embedding)
+        .collect::<Vec<_>>();
+
+    if vectors.len() != inputs.len() {
+        return Err(format!(
+            "Embedding cardinality mismatch: got {}, expected {}",
+            vectors.len(),
+            inputs.len()
+        ));
+    }
+
+    Ok(vectors)
+}
+
+fn embedding_url_from_chat_url(api_url: &str) -> String {
+    if api_url.contains("/chat/completions") {
+        return api_url.replace("/chat/completions", "/embeddings");
+    }
+    format!("{}/embeddings", api_url.trim_end_matches('/'))
+}
+
+fn embedding_model_for(chat_model: &str) -> String {
+    // OpenAI chat models are not embedding models.
+    if chat_model.starts_with("gpt-") {
+        "text-embedding-3-small".to_string()
+    } else {
+        chat_model.to_string()
+    }
 }
 
 // ── Built-in tool definitions for shard execution ───────────────────
@@ -554,5 +648,23 @@ mod tests {
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"type\":\"ToolCalls\""));
         assert!(json.contains("\"name\":\"http_fetch\""));
+    }
+
+    #[test]
+    fn embedding_url_mapping() {
+        assert_eq!(
+            embedding_url_from_chat_url("https://api.openai.com/v1/chat/completions"),
+            "https://api.openai.com/v1/embeddings"
+        );
+        assert_eq!(
+            embedding_url_from_chat_url("http://localhost:11434/v1/chat/completions"),
+            "http://localhost:11434/v1/embeddings"
+        );
+    }
+
+    #[test]
+    fn embedding_model_mapping() {
+        assert_eq!(embedding_model_for("gpt-4o-mini"), "text-embedding-3-small");
+        assert_eq!(embedding_model_for("nomic-embed-text"), "nomic-embed-text");
     }
 }

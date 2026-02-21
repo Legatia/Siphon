@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import type { CosmeticSlots } from "@siphon/core";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export async function PUT(
   request: NextRequest,
@@ -8,6 +9,9 @@ export async function PUT(
 ) {
   const { id: shardId } = await params;
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { cosmeticSlots, ownerId } = body as {
       cosmeticSlots: CosmeticSlots;
@@ -20,6 +24,9 @@ export async function PUT(
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+    if (mismatch) return mismatch;
 
     // Validate slot keys
     const validSlotKeys = ["aura", "trail", "crown", "emblem"];

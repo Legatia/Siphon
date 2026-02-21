@@ -121,8 +121,72 @@ AI agents are becoming commoditized. The defensible value isn't the agent itself
 
 ## Go-to-Market
 
-1. **Launch on Base** — contracts already deployed to Sepolia, mainnet deploy is one command
-2. **Free tier hooks** — bond a shard for free, hit message cap, upgrade to Trainer+ ($5/mo)
-3. **Keeper flywheel** — every Keeper+ subscriber runs a node, increasing network capacity
-4. **Agent marketplace** — "trained agents" as the product, not "AI platform"
-5. **Steam distribution** — desktop app for non-crypto users, Steam Wallet for payments
+### Positioning
+
+`Local AI workers that execute real jobs, learn from each completed task, and build a verifiable work record you can monetize.`
+
+Lead with utility first, on-chain second.
+
+### ICP (Start Narrow)
+
+1. Solo technical founders and indie hackers shipping fast
+2. Small dev agencies (2-10 people) doing repetitive coding/content/devops tasks
+3. Power users already running local models
+
+### Beachhead Use Case
+
+`Run repeatable coding/research tasks locally with auditable outputs, worker-level performance tracking, and measurable week-over-week improvement.`
+
+Do not lead with battles/loans in the first GTM narrative.
+
+### Core Differentiation (vs generic local agents)
+
+1. **Learning loop** — each completed task generates structured lessons that improve future execution
+2. **Proof layer** — outputs and acceptance outcomes are auditable, not opaque
+3. **Compounding reputation** — worker-level performance history powers a verified work score
+4. **Monetization path** — proven workers unlock bounties and higher-value opportunities
+
+### 90-Day GTM
+
+1. **Days 1-30: Proof of Learning + Value**
+   - Package 5 concrete worker jobs (test generation, bug triage, docs synthesis, SEO page drafts, data cleanup)
+   - Publish benchmark pages showing baseline vs memory-assisted performance
+   - KPI: 30 activated users, 50% run 3+ jobs in week 1, 20% median improvement by job #5
+
+2. **Days 31-60: Conversion Engine**
+   - Launch Keeper Proving Program (application + onboarding + weekly office hours)
+   - Add templates + one-click workflows for top 3 jobs with built-in memory retrieval
+   - KPI: 15% free->paid, 40% week-4 retention for activated users, 60% memory-assisted run rate
+
+3. **Days 61-90: Market Loop**
+   - Introduce verified work score and leaderboards tied to accepted completed jobs
+   - Open bounties with clear acceptance criteria and payouts
+   - KPI: 100 paid users, 200 completed bounties/jobs, <$200 CAC payback <2 months
+
+### Channel Plan
+
+1. Build in public on X/LinkedIn: weekly proof posts (task -> output -> lesson -> improvement)
+2. Founder communities: Indie Hackers, Hacker News Show HN, niche Discords/Reddit
+3. YouTube short demos: task -> output -> minutes saved -> improved rerun
+4. Partner with 10 micro-creators in AI dev tooling
+
+### Pricing (Utility + Learning First)
+
+1. Free: limited jobs + basic memory depth + local trial
+2. Keeper: unlimited local jobs + templates + logs + full learning timeline
+3. Keeper+: team collaboration + shared worker profiles + bounty access
+
+Keep token/financial language out of top-of-funnel pricing pages.
+
+### Core Metrics
+
+1. Activation: first successful job in <15 minutes
+2. Value: jobs/user/week, median minutes saved
+3. Quality: accepted output rate
+4. Learning: improvement slope per worker (job 1 vs jobs 5/10), memory retrieval hit rate
+5. Retention: D7 and D30 after first completed job
+6. Revenue: free->paid, ARPU, churn
+
+### Big GTM Rule
+
+If users do not repeatedly run real jobs and show compounding memory-backed improvement, pause expansion of game/DeFi features and focus all effort on onboarding speed, lesson quality, and retrieval relevance.

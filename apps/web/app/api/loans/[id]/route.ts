@@ -6,6 +6,8 @@ import {
   liquidateLoan,
   cancelLoan,
 } from "@/lib/loan-engine";
+import { requireSessionAddress } from "@/lib/session-auth";
+import { verifyLoanActionTx } from "@/lib/loan-onchain";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +32,21 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
-    const { action, lender, caller, txHash } = body;
+    const { action, lender, txHash } = body;
 
     if (!action) {
       return NextResponse.json(
         { error: "Missing action field (fund | repay | liquidate | cancel)" },
+        { status: 400 }
+      );
+    }
+    if (!txHash) {
+      return NextResponse.json(
+        { error: "txHash is required for all loan actions" },
         { status: 400 }
       );
     }
@@ -50,12 +61,20 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        // Verify the caller is the lender (prevent spoofing lender address)
-        if (caller && caller.toLowerCase() !== lender.toLowerCase()) {
+        if (auth.address !== lender.toLowerCase()) {
           return NextResponse.json(
             { error: "Caller does not match lender address" },
             { status: 403 }
           );
+        }
+        const verified = await verifyLoanActionTx({
+          txHash,
+          expectedFrom: auth.address,
+          loanId: id,
+          action: "fund",
+        });
+        if (!verified.ok) {
+          return NextResponse.json({ error: verified.error }, { status: 400 });
         }
         loan = fundLoan(id, lender, txHash);
         break;
@@ -70,11 +89,20 @@ export async function PATCH(
             { status: 404 }
           );
         }
-        if (!caller || caller.toLowerCase() !== loanToRepay.borrower.toLowerCase()) {
+        if (auth.address !== loanToRepay.borrower.toLowerCase()) {
           return NextResponse.json(
             { error: "Only the borrower can repay this loan" },
             { status: 403 }
           );
+        }
+        const verified = await verifyLoanActionTx({
+          txHash,
+          expectedFrom: auth.address,
+          loanId: id,
+          action: "repay",
+        });
+        if (!verified.ok) {
+          return NextResponse.json({ error: verified.error }, { status: 400 });
         }
         loan = repayLoan(id, txHash);
         break;
@@ -89,11 +117,20 @@ export async function PATCH(
             { status: 404 }
           );
         }
-        if (!caller || caller.toLowerCase() !== loanToLiquidate.lender?.toLowerCase()) {
+        if (auth.address !== loanToLiquidate.lender?.toLowerCase()) {
           return NextResponse.json(
             { error: "Only the lender can liquidate this loan" },
             { status: 403 }
           );
+        }
+        const verified = await verifyLoanActionTx({
+          txHash,
+          expectedFrom: auth.address,
+          loanId: id,
+          action: "liquidate",
+        });
+        if (!verified.ok) {
+          return NextResponse.json({ error: verified.error }, { status: 400 });
         }
         loan = liquidateLoan(id, txHash);
         break;
@@ -108,11 +145,20 @@ export async function PATCH(
             { status: 404 }
           );
         }
-        if (!caller || caller.toLowerCase() !== existing.borrower.toLowerCase()) {
+        if (auth.address !== existing.borrower.toLowerCase()) {
           return NextResponse.json(
             { error: "Only the borrower can cancel this loan" },
             { status: 403 }
           );
+        }
+        const verified = await verifyLoanActionTx({
+          txHash,
+          expectedFrom: auth.address,
+          loanId: id,
+          action: "cancel",
+        });
+        if (!verified.ok) {
+          return NextResponse.json({ error: verified.error }, { status: 400 });
         }
         loan = cancelLoan(id);
         break;

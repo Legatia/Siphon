@@ -5,13 +5,17 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
-import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X } from "lucide-react";
+import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X, Trophy, Binoculars, CalendarRange, Medal } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/drift", label: "Drift", icon: Compass },
   { href: "/shelter", label: "Shelter", icon: Store },
   { href: "/battle", label: "Battles", icon: Swords },
+  { href: "/leaderboards", label: "Ranks", icon: Trophy },
+  { href: "/spectate", label: "Spectate", icon: Binoculars },
+  { href: "/seasons", label: "Seasons", icon: CalendarRange },
+  { href: "/achievements", label: "Achievements", icon: Medal },
   { href: "/fusion", label: "Fusion", icon: Combine },
   { href: "/loans", label: "Loans", icon: Landmark },
   { href: "/marketplace", label: "Market", icon: ShoppingBag },
@@ -29,7 +33,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4 lg:gap-8">
-            <Link href="/" className="flex items-center gap-2 group">
+            <Link href="/dashboard" className="flex items-center gap-2 group">
               <Waves className="h-6 w-6 text-siphon-teal group-hover:drop-shadow-[0_0_8px_rgba(0,212,170,0.6)] transition-all" />
               <span className="font-bold text-lg text-foam tracking-tight">
                 Siphon
@@ -39,8 +43,8 @@ export function Navbar() {
             <div className="hidden lg:flex items-center gap-1">
               {navItems.map((item) => {
                 const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
                     : pathname.startsWith(item.href);
                 return (
                   <Link

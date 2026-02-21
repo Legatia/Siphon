@@ -108,10 +108,22 @@ impl KeeperState {
         for loan_id in &loans {
             match chain::check_liquidatable(&self.config, loan_id).await {
                 Ok(true) => {
-                    tracing::warn!(
-                        "LIQUIDATION ALERT: Loan {} is liquidatable! Lender should call liquidate().",
-                        loan_id
-                    );
+                    tracing::warn!("Loan {} is liquidatable. Attempting liquidation...", loan_id);
+                    match chain::liquidate_loan(&self.config, loan_id).await {
+                        Ok(tx) => {
+                            tracing::info!("Loan {} liquidated: {}", loan_id, tx);
+                            if let Err(e) = db::untrack_loan(&self.config.data_dir, loan_id) {
+                                tracing::warn!(
+                                    "Liquidated loan {}, but failed to untrack in DB: {}",
+                                    loan_id,
+                                    e
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Auto-liquidation failed for loan {}: {}", loan_id, e);
+                        }
+                    }
                 }
                 Ok(false) => {
                     tracing::debug!("Loan {} is healthy", loan_id);

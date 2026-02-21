@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import { Providers } from "@/components/providers";
-import { Navbar } from "@/components/layout/navbar";
 import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Siphon Protocol",
-  description: "Discover, capture, and train AI Shards from the digital deep",
+  description: "Capture AI agents, train them to think, put them to work — on Base",
 };
 
 export default function RootLayout({
@@ -16,12 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen particle-bg">
+      <body className="min-h-screen">
         <Providers>
-          <Navbar />
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {children}
-          </main>
+          {children}
           <Toaster
             theme="dark"
             position="bottom-right"

@@ -13,9 +13,20 @@ const authPublicClient = createPublicClient({
 });
 
 const SESSION_COOKIE = "siphon_session";
-const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+const DEV_FALLBACK_SECRET = "dev-secret-change-in-production";
+const SESSION_SECRET = process.env.SESSION_SECRET || DEV_FALLBACK_SECRET;
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const SESSION_REFRESH_THRESHOLD_MS = 24 * 60 * 60 * 1000; // Refresh if >1 day old
+
+function getSessionSecret(): string {
+  if (
+    process.env.NODE_ENV === "production" &&
+    SESSION_SECRET === DEV_FALLBACK_SECRET
+  ) {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
+  return SESSION_SECRET;
+}
 
 /**
  * Lightweight SIWE-style session management.
@@ -67,7 +78,7 @@ function createSessionToken(address: string): string {
   const ts = Date.now().toString(36);
   const payload = `${address.toLowerCase()}.${ts}`;
   const hmac = crypto
-    .createHmac("sha256", SESSION_SECRET)
+    .createHmac("sha256", getSessionSecret())
     .update(payload)
     .digest("hex");
   return `${payload}.${hmac}`;
@@ -83,7 +94,7 @@ function verifySessionToken(token: string): { address: string; issuedAt: number 
 
   const payload = `${address}.${ts}`;
   const expected = crypto
-    .createHmac("sha256", SESSION_SECRET)
+    .createHmac("sha256", getSessionSecret())
     .update(payload)
     .digest("hex");
 

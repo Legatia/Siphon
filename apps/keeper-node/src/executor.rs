@@ -196,6 +196,10 @@ async fn execute_shell(
         .as_str()
         .ok_or("Missing 'command' argument")?;
 
+    let mut parts = command.split_whitespace();
+    let program = parts.next().ok_or("Command cannot be empty")?;
+    let argv: Vec<&str> = parts.collect();
+
     let timeout_secs = args["timeout_secs"]
         .as_u64()
         .unwrap_or(30)
@@ -203,9 +207,8 @@ async fn execute_shell(
 
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
-        Command::new("sh")
-            .arg("-c")
-            .arg(command)
+        Command::new(program)
+            .args(&argv)
             .current_dir(workspace)
             .output(),
     )

@@ -155,6 +155,7 @@ export interface MatchmakingEntry {
   eloRating: number;
   stakeAmount: number;
   joinedAt: number;
+  searchRange?: number;
 }
 
 export interface KeeperNode {
@@ -197,6 +198,9 @@ export interface BattleRound {
   defenderResponse: string;
   scores: { challenger: number; defender: number };
   reasoning?: string;
+  startedAt?: number;
+  dueAt?: number;
+  timeoutBy?: "challenger" | "defender" | "both";
 }
 
 export interface ResourceManifest {

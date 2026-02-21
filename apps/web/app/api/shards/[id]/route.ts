@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getShardById, releaseToWild } from "@/lib/shard-engine";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export async function GET(
   request: NextRequest,
@@ -18,12 +19,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const auth = await requireSessionAddress();
+  if ("error" in auth) return auth.error;
+
   const body = await request.json();
   const { ownerId } = body;
 
   if (!ownerId) {
     return NextResponse.json({ error: "Missing ownerId" }, { status: 400 });
   }
+
+  const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+  if (mismatch) return mismatch;
 
   const released = releaseToWild(id, ownerId);
   if (!released) {

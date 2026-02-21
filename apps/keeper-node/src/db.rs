@@ -83,16 +83,108 @@ pub fn init_db(data_dir: &str) -> SqliteResult<()> {
             added_at INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS task_lessons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shard_id TEXT NOT NULL REFERENCES shards(id),
+            action_id INTEGER NOT NULL REFERENCES action_log(id),
+            task_type TEXT NOT NULL,
+            goal TEXT NOT NULL,
+            approach TEXT NOT NULL,
+            tools_used_json TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            errors_json TEXT NOT NULL,
+            fixes_json TEXT NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            success INTEGER NOT NULL DEFAULT 0,
+            extractor_confidence REAL NOT NULL,
+            applicability_confidence REAL NOT NULL,
+            reusability REAL NOT NULL,
+            score REAL NOT NULL DEFAULT 0.5,
+            artifact_path TEXT NOT NULL,
+            times_retrieved INTEGER NOT NULL DEFAULT 0,
+            times_helpful INTEGER NOT NULL DEFAULT 0,
+            times_unhelpful INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS lesson_retrieval_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shard_id TEXT NOT NULL REFERENCES shards(id),
+            action_id INTEGER NOT NULL REFERENCES action_log(id),
+            task TEXT NOT NULL,
+            task_type TEXT NOT NULL,
+            lesson_ids_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            completed_at INTEGER,
+            success INTEGER,
+            duration_ms INTEGER,
+            latency_delta_ms INTEGER,
+            helpful INTEGER
+        );
+
         CREATE INDEX IF NOT EXISTS idx_shards_type ON shards(shard_type);
         CREATE INDEX IF NOT EXISTS idx_shards_wild ON shards(is_wild);
         CREATE INDEX IF NOT EXISTS idx_interactions_shard ON interactions(shard_id);
         CREATE INDEX IF NOT EXISTS idx_action_log_shard ON action_log(shard_id);
         CREATE INDEX IF NOT EXISTS idx_action_log_status ON action_log(status);
         CREATE INDEX IF NOT EXISTS idx_tracked_loans_state ON tracked_loans(state);
+        CREATE INDEX IF NOT EXISTS idx_task_lessons_shard_created ON task_lessons(shard_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_task_lessons_shard_type ON task_lessons(shard_id, task_type);
+        CREATE INDEX IF NOT EXISTS idx_task_lessons_score ON task_lessons(score DESC);
+        CREATE INDEX IF NOT EXISTS idx_lesson_retrieval_events_shard_created ON lesson_retrieval_events(shard_id, created_at DESC);
         ",
     )?;
 
+    // Backward-compatible migrations for older local DBs.
+    ensure_column_exists(
+        &conn,
+        "shards",
+        "execution_state",
+        "TEXT NOT NULL DEFAULT 'idle'",
+    )?;
+    ensure_column_exists(
+        &conn,
+        "shards",
+        "capabilities_json",
+        "TEXT NOT NULL DEFAULT '{}'",
+    )?;
+    ensure_column_exists(
+        &conn,
+        "shards",
+        "tasks_completed",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column_exists(
+        &conn,
+        "shards",
+        "tasks_failed",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+
     tracing::info!("Database initialized at {}", db_path(data_dir));
+    Ok(())
+}
+
+fn ensure_column_exists(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition_sql: &str,
+) -> SqliteResult<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<SqliteResult<Vec<_>>>()?;
+    if !columns.iter().any(|c| c == column) {
+        conn.execute(
+            &format!(
+                "ALTER TABLE {} ADD COLUMN {} {}",
+                table, column, definition_sql
+            ),
+            [],
+        )?;
+    }
     Ok(())
 }
 
@@ -379,6 +471,67 @@ pub struct ActionLog {
     pub completed_at: Option<u64>,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TaskLesson {
+    pub id: i64,
+    pub shard_id: String,
+    pub action_id: i64,
+    pub task_type: String,
+    pub goal: String,
+    pub approach: String,
+    pub tools_used: Vec<String>,
+    pub outcome: String,
+    pub errors: Vec<String>,
+    pub fixes: Vec<String>,
+    pub duration_ms: u64,
+    pub success: bool,
+    pub extractor_confidence: f64,
+    pub applicability_confidence: f64,
+    pub reusability: f64,
+    pub score: f64,
+    pub artifact_path: String,
+    pub times_retrieved: u32,
+    pub times_helpful: u32,
+    pub times_unhelpful: u32,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewTaskLesson<'a> {
+    pub shard_id: &'a str,
+    pub action_id: i64,
+    pub task_type: &'a str,
+    pub goal: &'a str,
+    pub approach: &'a str,
+    pub tools_used: &'a [String],
+    pub outcome: &'a str,
+    pub errors: &'a [String],
+    pub fixes: &'a [String],
+    pub duration_ms: u64,
+    pub success: bool,
+    pub extractor_confidence: f64,
+    pub applicability_confidence: f64,
+    pub reusability: f64,
+    pub artifact_path: &'a str,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LessonRetrievalEvent {
+    pub id: i64,
+    pub shard_id: String,
+    pub action_id: i64,
+    pub task: String,
+    pub task_type: String,
+    pub lesson_ids: Vec<i64>,
+    pub created_at: u64,
+    pub completed_at: Option<u64>,
+    pub success: Option<bool>,
+    pub duration_ms: Option<u64>,
+    pub latency_delta_ms: Option<i64>,
+    pub helpful: Option<bool>,
+}
+
 /// Insert a new action log entry (status=pending). Returns the row ID.
 pub fn insert_action(
     data_dir: &str,
@@ -486,6 +639,275 @@ pub fn get_action_summary(data_dir: &str, shard_id: &str) -> SqliteResult<(u32, 
     Ok((total, success, failed))
 }
 
+pub fn insert_task_lesson(data_dir: &str, lesson: &NewTaskLesson) -> SqliteResult<i64> {
+    let conn = open_db(data_dir)?;
+    let now = now_millis();
+    let tools_used_json = serde_json::to_string(lesson.tools_used).unwrap_or_else(|_| "[]".to_string());
+    let errors_json = serde_json::to_string(lesson.errors).unwrap_or_else(|_| "[]".to_string());
+    let fixes_json = serde_json::to_string(lesson.fixes).unwrap_or_else(|_| "[]".to_string());
+    let success_f = if lesson.success { 1.0 } else { 0.0 };
+    let initial_score = (0.15 * success_f
+        + 0.30 * lesson.extractor_confidence
+        + 0.30 * lesson.applicability_confidence
+        + 0.25 * lesson.reusability)
+        .clamp(0.0, 1.0);
+
+    conn.execute(
+        "INSERT INTO task_lessons (
+            shard_id, action_id, task_type, goal, approach, tools_used_json, outcome,
+            errors_json, fixes_json, duration_ms, success, extractor_confidence,
+            applicability_confidence, reusability, score, artifact_path,
+            times_retrieved, times_helpful, times_unhelpful, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, 0, 0, ?17, ?18)",
+        params![
+            lesson.shard_id,
+            lesson.action_id,
+            lesson.task_type,
+            lesson.goal,
+            lesson.approach,
+            tools_used_json,
+            lesson.outcome,
+            errors_json,
+            fixes_json,
+            lesson.duration_ms,
+            if lesson.success { 1 } else { 0 },
+            lesson.extractor_confidence,
+            lesson.applicability_confidence,
+            lesson.reusability,
+            initial_score,
+            lesson.artifact_path,
+            now,
+            now
+        ],
+    )?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn get_recent_task_lessons(
+    data_dir: &str,
+    shard_id: &str,
+    limit: u32,
+) -> SqliteResult<Vec<TaskLesson>> {
+    let conn = open_db(data_dir)?;
+    let mut stmt = conn.prepare(
+        "SELECT id, shard_id, action_id, task_type, goal, approach, tools_used_json, outcome,
+                errors_json, fixes_json, duration_ms, success, extractor_confidence,
+                applicability_confidence, reusability, score, artifact_path,
+                times_retrieved, times_helpful, times_unhelpful, created_at, updated_at
+         FROM task_lessons
+         WHERE shard_id = ?1
+         ORDER BY created_at DESC
+         LIMIT ?2",
+    )?;
+
+    let lessons = stmt
+        .query_map(params![shard_id, limit], row_to_task_lesson)?
+        .collect::<SqliteResult<Vec<_>>>()?;
+    Ok(lessons)
+}
+
+pub fn retrieve_relevant_lessons(
+    data_dir: &str,
+    shard_id: &str,
+    task: &str,
+    task_type: &str,
+    max_lessons: usize,
+) -> SqliteResult<Vec<TaskLesson>> {
+    let conn = open_db(data_dir)?;
+    let mut stmt = conn.prepare(
+        "SELECT id, shard_id, action_id, task_type, goal, approach, tools_used_json, outcome,
+                errors_json, fixes_json, duration_ms, success, extractor_confidence,
+                applicability_confidence, reusability, score, artifact_path,
+                times_retrieved, times_helpful, times_unhelpful, created_at, updated_at
+         FROM task_lessons
+         WHERE shard_id = ?1
+         ORDER BY created_at DESC
+         LIMIT 300",
+    )?;
+    let mut lessons = stmt
+        .query_map(params![shard_id], row_to_task_lesson)?
+        .collect::<SqliteResult<Vec<_>>>()?;
+
+    let query_tokens = tokenize(task);
+    let now = now_millis();
+    let mut ranked: Vec<(TaskLesson, f64)> = lessons
+        .drain(..)
+        .map(|l| {
+            let score = lesson_rank(&l, &query_tokens, task_type, now);
+            (l, score)
+        })
+        .collect();
+
+    ranked.sort_by(|a, b| {
+        let sa = a.1;
+        let sb = b.1;
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut selected: Vec<TaskLesson> = Vec::new();
+    let target_max = max_lessons.min(7);
+    for (lesson, rank) in &ranked {
+        if selected.len() >= target_max {
+            break;
+        }
+        // Quality floor once we already have enough context candidates.
+        if selected.len() >= 3 && *rank < 0.22 {
+            break;
+        }
+        if selected.iter().any(|s| near_duplicate(s, lesson)) {
+            continue;
+        }
+        selected.push(lesson.clone());
+    }
+
+    // Fallback fill to ensure up to `target_max` when corpus is small/noisy.
+    if selected.len() < target_max {
+        for (lesson, _) in ranked {
+            if selected.len() >= target_max {
+                break;
+            }
+            if selected.iter().any(|s| near_duplicate(s, &lesson)) {
+                continue;
+            }
+            selected.push(lesson);
+        }
+    }
+
+    Ok(selected)
+}
+
+pub fn start_lesson_retrieval_event(
+    data_dir: &str,
+    shard_id: &str,
+    action_id: i64,
+    task: &str,
+    task_type: &str,
+    lesson_ids: &[i64],
+) -> SqliteResult<i64> {
+    let conn = open_db(data_dir)?;
+    let now = now_millis();
+    let lesson_ids_json = serde_json::to_string(lesson_ids).unwrap_or_else(|_| "[]".to_string());
+    conn.execute(
+        "INSERT INTO lesson_retrieval_events (
+            shard_id, action_id, task, task_type, lesson_ids_json, created_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![shard_id, action_id, task, task_type, lesson_ids_json, now],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn complete_lesson_retrieval_event(
+    data_dir: &str,
+    event_id: i64,
+    success: bool,
+    duration_ms: u64,
+    latency_delta_ms: Option<i64>,
+    helpful: bool,
+) -> SqliteResult<()> {
+    let conn = open_db(data_dir)?;
+    let now = now_millis();
+    conn.execute(
+        "UPDATE lesson_retrieval_events
+         SET completed_at = ?1, success = ?2, duration_ms = ?3, latency_delta_ms = ?4, helpful = ?5
+         WHERE id = ?6",
+        params![
+            now,
+            if success { 1 } else { 0 },
+            duration_ms,
+            latency_delta_ms,
+            if helpful { 1 } else { 0 },
+            event_id
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn apply_lesson_feedback(
+    data_dir: &str,
+    lesson_ids: &[i64],
+    helpful: bool,
+) -> SqliteResult<()> {
+    if lesson_ids.is_empty() {
+        return Ok(());
+    }
+    let conn = open_db(data_dir)?;
+    let now = now_millis();
+    let delta = if helpful { 0.08 } else { -0.05 };
+    for id in lesson_ids {
+        conn.execute(
+            "UPDATE task_lessons
+             SET times_retrieved = times_retrieved + 1,
+                 times_helpful = times_helpful + ?1,
+                 times_unhelpful = times_unhelpful + ?2,
+                 score = MIN(1.0, MAX(0.0, score + ?3)),
+                 updated_at = ?4
+             WHERE id = ?5",
+            params![
+                if helpful { 1 } else { 0 },
+                if helpful { 0 } else { 1 },
+                delta,
+                now,
+                id
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn avg_success_duration_by_task_type(
+    data_dir: &str,
+    shard_id: &str,
+    task_type: &str,
+) -> SqliteResult<Option<u64>> {
+    let conn = open_db(data_dir)?;
+    let avg: Option<f64> = conn.query_row(
+        "SELECT AVG(duration_ms) FROM task_lessons
+         WHERE shard_id = ?1 AND task_type = ?2 AND success = 1",
+        params![shard_id, task_type],
+        |row| row.get(0),
+    )?;
+    Ok(avg.map(|v| v.max(0.0) as u64))
+}
+
+pub fn get_recent_lesson_retrieval_events(
+    data_dir: &str,
+    shard_id: &str,
+    limit: u32,
+) -> SqliteResult<Vec<LessonRetrievalEvent>> {
+    let conn = open_db(data_dir)?;
+    let mut stmt = conn.prepare(
+        "SELECT id, shard_id, action_id, task, task_type, lesson_ids_json, created_at,
+                completed_at, success, duration_ms, latency_delta_ms, helpful
+         FROM lesson_retrieval_events
+         WHERE shard_id = ?1
+         ORDER BY created_at DESC
+         LIMIT ?2",
+    )?;
+
+    let events = stmt
+        .query_map(params![shard_id, limit], |row| {
+            let lesson_ids_json: String = row.get(5)?;
+            Ok(LessonRetrievalEvent {
+                id: row.get(0)?,
+                shard_id: row.get(1)?,
+                action_id: row.get(2)?,
+                task: row.get(3)?,
+                task_type: row.get(4)?,
+                lesson_ids: serde_json::from_str(&lesson_ids_json).unwrap_or_default(),
+                created_at: row.get(6)?,
+                completed_at: row.get(7)?,
+                success: row.get::<_, Option<i64>>(8)?.map(|v| v != 0),
+                duration_ms: row.get(9)?,
+                latency_delta_ms: row.get(10)?,
+                helpful: row.get::<_, Option<i64>>(11)?.map(|v| v != 0),
+            })
+        })?
+        .collect::<SqliteResult<Vec<_>>>()?;
+
+    Ok(events)
+}
+
 /// Get all tracked loan IDs with state = 'Funded' for liquidation checks.
 pub fn get_funded_loans(data_dir: &str) -> SqliteResult<Vec<String>> {
     let conn = open_db(data_dir)?;
@@ -524,6 +946,81 @@ fn now_millis() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+fn row_to_task_lesson(row: &rusqlite::Row) -> SqliteResult<TaskLesson> {
+    let tools_json: String = row.get(6)?;
+    let errors_json: String = row.get(8)?;
+    let fixes_json: String = row.get(9)?;
+    Ok(TaskLesson {
+        id: row.get(0)?,
+        shard_id: row.get(1)?,
+        action_id: row.get(2)?,
+        task_type: row.get(3)?,
+        goal: row.get(4)?,
+        approach: row.get(5)?,
+        tools_used: serde_json::from_str(&tools_json).unwrap_or_default(),
+        outcome: row.get(7)?,
+        errors: serde_json::from_str(&errors_json).unwrap_or_default(),
+        fixes: serde_json::from_str(&fixes_json).unwrap_or_default(),
+        duration_ms: row.get(10)?,
+        success: row.get::<_, i64>(11)? != 0,
+        extractor_confidence: row.get(12)?,
+        applicability_confidence: row.get(13)?,
+        reusability: row.get(14)?,
+        score: row.get(15)?,
+        artifact_path: row.get(16)?,
+        times_retrieved: row.get(17)?,
+        times_helpful: row.get(18)?,
+        times_unhelpful: row.get(19)?,
+        created_at: row.get(20)?,
+        updated_at: row.get(21)?,
+    })
+}
+
+fn lesson_rank(
+    lesson: &TaskLesson,
+    query_tokens: &[String],
+    task_type: &str,
+    now_ms: u64,
+) -> f64 {
+    let corpus = format!("{} {} {}", lesson.goal, lesson.approach, lesson.outcome);
+    let lesson_tokens = tokenize(&corpus);
+    let lexical = jaccard(query_tokens, &lesson_tokens);
+    let type_boost = if lesson.task_type == task_type { 0.2 } else { 0.0 };
+    let helpful_rate = (lesson.times_helpful as f64 + 1.0)
+        / (lesson.times_retrieved as f64 + 2.0);
+    let age_days = ((now_ms.saturating_sub(lesson.created_at)) as f64 / 86_400_000.0).max(0.0);
+    let recency = 1.0 / (1.0 + age_days / 14.0);
+    lexical * 0.45 + lesson.score * 0.30 + helpful_rate * 0.15 + recency * 0.10 + type_boost
+}
+
+fn tokenize(input: &str) -> Vec<String> {
+    input
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| t.len() >= 3)
+        .map(|t| t.to_ascii_lowercase())
+        .collect()
+}
+
+fn jaccard(a: &[String], b: &[String]) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let a_set: std::collections::HashSet<&str> = a.iter().map(|s| s.as_str()).collect();
+    let b_set: std::collections::HashSet<&str> = b.iter().map(|s| s.as_str()).collect();
+    let inter = a_set.intersection(&b_set).count() as f64;
+    let union = a_set.union(&b_set).count() as f64;
+    if union == 0.0 { 0.0 } else { inter / union }
+}
+
+fn near_duplicate(a: &TaskLesson, b: &TaskLesson) -> bool {
+    if a.task_type != b.task_type {
+        return false;
+    }
+    let ta = tokenize(&format!("{} {}", a.goal, a.approach));
+    let tb = tokenize(&format!("{} {}", b.goal, b.approach));
+    jaccard(&ta, &tb) >= 0.82
 }
 
 /// Expand ~ to home directory in paths.
@@ -699,5 +1196,55 @@ mod tests {
 
         let limited = get_interactions(&path, &shard.id, 3).unwrap();
         assert_eq!(limited.len(), 3);
+    }
+
+    #[test]
+    fn task_lessons_insert_retrieve_and_feedback() {
+        let (_dir, path) = temp_data_dir();
+        init_db(&path).unwrap();
+
+        let shard = Shard::spawn(None);
+        insert_shard(&path, &shard).unwrap();
+        let action_id = insert_action(&path, &shard.id, "Fix failing tests in parser").unwrap();
+        let tools = vec!["shell_exec".to_string(), "code_eval".to_string()];
+        let errors = vec!["shell_exec: initial command failed".to_string()];
+        let fixes = vec!["Recovered by narrowing command scope".to_string()];
+
+        let lesson = NewTaskLesson {
+            shard_id: &shard.id,
+            action_id,
+            task_type: "debug",
+            goal: "Fix failing tests in parser",
+            approach: "Used shell_exec and code_eval to isolate failing case",
+            tools_used: &tools,
+            outcome: "Tests passed after patching parser edge case",
+            errors: &errors,
+            fixes: &fixes,
+            duration_ms: 1450,
+            success: true,
+            extractor_confidence: 0.8,
+            applicability_confidence: 0.75,
+            reusability: 0.7,
+            artifact_path: "/tmp/memory.json",
+        };
+        let lesson_id = insert_task_lesson(&path, &lesson).unwrap();
+        assert!(lesson_id > 0);
+
+        let retrieved = retrieve_relevant_lessons(
+            &path,
+            &shard.id,
+            "parser tests are failing",
+            "debug",
+            5,
+        )
+        .unwrap();
+        assert!(!retrieved.is_empty());
+        assert_eq!(retrieved[0].id, lesson_id);
+
+        apply_lesson_feedback(&path, &[lesson_id], true).unwrap();
+        let recent = get_recent_task_lessons(&path, &shard.id, 5).unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].times_retrieved, 1);
+        assert_eq!(recent[0].times_helpful, 1);
     }
 }

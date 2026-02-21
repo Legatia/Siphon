@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,9 @@ export const dynamic = "force-dynamic";
  * Required env: CDP_PAYMASTER_URL (from portal.cdp.coinbase.com → Paymaster)
  */
 export async function POST(request: NextRequest) {
+  const session = await requireSessionAddress();
+  if ("error" in session) return session.error;
+
   const paymasterUrl = process.env.CDP_PAYMASTER_URL;
 
   if (!paymasterUrl) {

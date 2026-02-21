@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import crypto from "crypto";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
+import { getUserSubscription } from "@/lib/subscription-check";
+import { tierMeetsRequirement } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +48,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { name, slot, rarity, description, previewData, price, creatorId } =
       body;
@@ -62,6 +68,17 @@ export async function POST(request: NextRequest) {
     if (!creatorId) {
       return NextResponse.json(
         { error: "Missing creatorId - Keeper Pro subscription required" },
+        { status: 403 }
+      );
+    }
+
+    const mismatch = ensureAddressMatch(auth.address, creatorId, "creatorId");
+    if (mismatch) return mismatch;
+
+    const sub = getUserSubscription(auth.address);
+    if (!tierMeetsRequirement(sub.tier, "keeper_plus")) {
+      return NextResponse.json(
+        { error: "Creating cosmetics requires Keeper+ tier or higher" },
         { status: 403 }
       );
     }

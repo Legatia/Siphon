@@ -14,8 +14,29 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
-export function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+function isLandingOnlyDeployment(): boolean {
+  return process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+}
+
+function isAllowedLandingPath(pathname: string): boolean {
+  if (pathname === "/") return true;
+  if (pathname.startsWith("/_next/")) return true;
+  if (pathname.startsWith("/images/")) return true;
+  if (pathname === "/favicon.ico" || pathname === "/robots.txt" || pathname === "/sitemap.xml") {
+    return true;
+  }
+  // Allow static files from /public (e.g. /logo.svg, /fonts/*.woff2)
+  if (/\.[a-zA-Z0-9]+$/.test(pathname)) return true;
+  return false;
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Vercel production deployment should only serve the marketing landing page.
+  if (isLandingOnlyDeployment() && !isAllowedLandingPath(pathname)) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
 
   // Only rate-limit API routes
   if (!pathname.startsWith("/api/")) {
@@ -63,8 +84,7 @@ export function middleware(request: NextRequest) {
   }
 
   const key = `${prefix}:${ip}`;
-  const result = checkRateLimit(key, config);
-
+  const result = await checkRateLimit(key, config);
   if (!result.allowed) {
     return new NextResponse(
       JSON.stringify({
@@ -88,5 +108,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: "/:path*",
 };

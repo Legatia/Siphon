@@ -23,6 +23,8 @@ import {
   BATTLE_SETTLEMENT_ADDRESS,
   idToBytes32,
 } from "@/lib/contracts";
+import { recordSeasonResult } from "@/lib/seasons";
+import { evaluateAchievements } from "@/lib/achievements";
 
 /**
  * Settle a staked battle on-chain via the BattleSettlement contract.
@@ -264,6 +266,30 @@ export async function completeBattle(battleId: string): Promise<Battle> {
     battle.defender.shardId
   );
 
+  const challengerOwner = battle.challenger.keeperId.toLowerCase();
+  const defenderOwner = battle.defender.keeperId.toLowerCase();
+  const challengerWon = winnerId === battle.challenger.shardId;
+  const defenderWon = winnerId === battle.defender.shardId;
+
+  recordSeasonResult({
+    ownerId: challengerOwner,
+    points: isDraw ? 1 : challengerWon ? 3 : 0,
+    win: challengerWon,
+    loss: !isDraw && !challengerWon,
+    draw: isDraw,
+    eloDelta: battle.challenger.eloDelta,
+  });
+  recordSeasonResult({
+    ownerId: defenderOwner,
+    points: isDraw ? 1 : defenderWon ? 3 : 0,
+    win: defenderWon,
+    loss: !isDraw && !defenderWon,
+    draw: isDraw,
+    eloDelta: battle.defender.eloDelta,
+  });
+  evaluateAchievements(challengerOwner);
+  evaluateAchievements(defenderOwner);
+
   // Settle on-chain for staked battles
   if (battle.stakeAmount > 0 && battle.escrowTxHash) {
     try {
@@ -321,25 +347,43 @@ export function getBattlesForOwner(ownerId: string): Battle[] {
 
 export function findMatch(entry: MatchmakingEntry): MatchmakingEntry | null {
   const db = getDb();
-  const row = db
+  const rows = db
     .prepare(
       `SELECT * FROM matchmaking_queue
-       WHERE mode = ? AND owner_id != ? AND ABS(elo_rating - ?) <= 200
-       ORDER BY ABS(elo_rating - ?) ASC
-       LIMIT 1`
+       WHERE mode = ? AND owner_id != ?
+       ORDER BY joined_at ASC`
     )
-    .get(entry.mode, entry.ownerId, entry.eloRating, entry.eloRating);
+    .all(entry.mode, entry.ownerId) as any[];
 
-  if (!row) return null;
+  const now = Date.now();
+  const myWait = Math.max(0, now - entry.joinedAt);
+  const myRange = Math.min(1200, 200 + Math.floor(myWait / 30_000) * 100);
 
+  const candidates = rows
+    .map((row) => ({
+      id: row.id,
+      shardId: row.shard_id,
+      ownerId: row.owner_id,
+      mode: row.mode as BattleMode,
+      eloRating: row.elo_rating,
+      stakeAmount: row.stake_amount,
+      joinedAt: row.joined_at,
+      eloDiff: Math.abs(row.elo_rating - entry.eloRating),
+      oppRange: Math.min(1200, 200 + Math.floor(Math.max(0, now - row.joined_at) / 30_000) * 100),
+    }))
+    .filter((row) => row.eloDiff <= myRange && row.eloDiff <= row.oppRange)
+    .sort((a, b) => a.eloDiff - b.eloDiff);
+
+  if (!candidates.length) return null;
+  const winner = candidates[0]!;
   return {
-    id: (row as any).id,
-    shardId: (row as any).shard_id,
-    ownerId: (row as any).owner_id,
-    mode: (row as any).mode as BattleMode,
-    eloRating: (row as any).elo_rating,
-    stakeAmount: (row as any).stake_amount,
-    joinedAt: (row as any).joined_at,
+    id: winner.id,
+    shardId: winner.shardId,
+    ownerId: winner.ownerId,
+    mode: winner.mode,
+    eloRating: winner.eloRating,
+    stakeAmount: winner.stakeAmount,
+    joinedAt: winner.joinedAt,
   };
 }
 
@@ -400,8 +444,18 @@ export function leaveQueue(entryId: string): void {
   db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(entryId);
 }
 
+export function leaveQueueForOwner(entryId: string, ownerId: string): boolean {
+  const db = getDb();
+  const result = db
+    .prepare("DELETE FROM matchmaking_queue WHERE id = ? AND owner_id = ?")
+    .run(entryId, ownerId);
+  return result.changes > 0;
+}
+
 export function getQueueEntries(ownerId: string): MatchmakingEntry[] {
   const db = getDb();
+  const timeoutAt = Date.now() - 10 * 60 * 1000;
+  db.prepare("DELETE FROM matchmaking_queue WHERE joined_at < ?").run(timeoutAt);
   const rows = db
     .prepare("SELECT * FROM matchmaking_queue WHERE owner_id = ?")
     .all(ownerId);
@@ -414,5 +468,45 @@ export function getQueueEntries(ownerId: string): MatchmakingEntry[] {
     eloRating: row.elo_rating,
     stakeAmount: row.stake_amount,
     joinedAt: row.joined_at,
+    searchRange: Math.min(1200, 200 + Math.floor(Math.max(0, Date.now() - row.joined_at) / 30_000) * 100),
   }));
+}
+
+export function attemptQueueMatches(mode?: BattleMode): number {
+  const db = getDb();
+  const rows = mode
+    ? (db.prepare("SELECT * FROM matchmaking_queue WHERE mode = ? ORDER BY joined_at ASC").all(mode) as any[])
+    : (db.prepare("SELECT * FROM matchmaking_queue ORDER BY joined_at ASC").all() as any[]);
+
+  let created = 0;
+  for (const row of rows) {
+    const entry: MatchmakingEntry = {
+      id: row.id,
+      shardId: row.shard_id,
+      ownerId: row.owner_id,
+      mode: row.mode as BattleMode,
+      eloRating: row.elo_rating,
+      stakeAmount: row.stake_amount,
+      joinedAt: row.joined_at,
+    };
+    const match = findMatch(entry);
+    if (!match) continue;
+
+    const stillExists = db.prepare("SELECT id FROM matchmaking_queue WHERE id = ?").get(entry.id);
+    const opponentExists = db.prepare("SELECT id FROM matchmaking_queue WHERE id = ?").get(match.id);
+    if (!stillExists || !opponentExists) continue;
+
+    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(match.id);
+    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(entry.id);
+    createBattle(
+      entry.shardId,
+      match.shardId,
+      entry.mode,
+      Math.min(entry.stakeAmount, match.stakeAmount),
+      entry.ownerId,
+      match.ownerId
+    );
+    created += 1;
+  }
+  return created;
 }

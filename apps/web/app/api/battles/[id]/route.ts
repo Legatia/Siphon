@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBattleById } from "@/lib/battle-engine";
+import { completeBattle, getBattleById } from "@/lib/battle-engine";
 import { getDb } from "@/lib/db";
-import type { Battle, BattleRound } from "@siphon/core";
+import { PROTOCOL_CONSTANTS, type Battle, type BattleRound } from "@siphon/core";
+import { requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,37 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const battle = getBattleById(id);
+    let battle = getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
+    }
+    if (battle.status !== "completed") {
+      const now = Date.now();
+      let mutated = false;
+      for (const round of battle.rounds) {
+        if (!round.dueAt || now <= round.dueAt) continue;
+        if (!round.challengerResponse) {
+          round.challengerResponse = "[Timed out]";
+          mutated = true;
+        }
+        if (!round.defenderResponse) {
+          round.defenderResponse = "[Timed out]";
+          mutated = true;
+        }
+      }
+      if (mutated) {
+        const db = getDb();
+        db.prepare("UPDATE battles SET rounds_json = ? WHERE id = ?").run(
+          JSON.stringify(battle.rounds),
+          id
+        );
+        const allRoundsPlayed =
+          battle.rounds.length >= PROTOCOL_CONSTANTS.BATTLE_ROUNDS &&
+          battle.rounds.every((r) => r.challengerResponse && r.defenderResponse);
+        if (allRoundsPlayed) {
+          battle = await completeBattle(id);
+        }
+      }
     }
     return NextResponse.json(battle);
   } catch (error) {
@@ -30,10 +59,13 @@ export async function PUT(
 ) {
   const { id: battleId } = await params;
   try {
-    const body = await request.json();
-    const { round, shardId, response } = body;
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
 
-    if (round === undefined || !shardId || !response) {
+    const body = await request.json();
+    const { round, shardId, response, timedOut } = body;
+
+    if (round === undefined || !shardId || response === undefined) {
       return NextResponse.json(
         { error: "Missing required fields: round, shardId, response" },
         { status: 400 }
@@ -59,15 +91,40 @@ export async function PUT(
         challengerResponse: "",
         defenderResponse: "",
         scores: { challenger: 0, defender: 0 },
+        startedAt: Date.now(),
+        dueAt: Date.now() + PROTOCOL_CONSTANTS.BATTLE_TURN_TIME_LIMIT_MS,
       };
       battle.rounds.push(battleRound);
     }
 
+    const challengerAddress = battle.challenger.keeperId.toLowerCase();
+    const defenderAddress = battle.defender.keeperId.toLowerCase();
+    const isParticipant =
+      auth.address === challengerAddress || auth.address === defenderAddress;
+    if (!isParticipant) {
+      return NextResponse.json(
+        { error: "Only battle participants can submit round responses" },
+        { status: 403 }
+      );
+    }
+
     // Determine which participant this shard belongs to
     if (shardId === battle.challenger.shardId) {
-      battleRound.challengerResponse = response;
+      if (auth.address !== challengerAddress) {
+        return NextResponse.json(
+          { error: "Only the challenger can submit for this shard" },
+          { status: 403 }
+        );
+      }
+      battleRound.challengerResponse = timedOut ? "[Timed out]" : String(response);
     } else if (shardId === battle.defender.shardId) {
-      battleRound.defenderResponse = response;
+      if (auth.address !== defenderAddress) {
+        return NextResponse.json(
+          { error: "Only the defender can submit for this shard" },
+          { status: 403 }
+        );
+      }
+      battleRound.defenderResponse = timedOut ? "[Timed out]" : String(response);
     } else {
       return NextResponse.json(
         { error: "Shard is not a participant in this battle" },
@@ -94,6 +151,15 @@ export async function PUT(
       JSON.stringify(battle.rounds),
       battleId
     );
+
+    const allRoundsPlayed =
+      battle.rounds.length >= PROTOCOL_CONSTANTS.BATTLE_ROUNDS &&
+      battle.rounds.every((r) => r.challengerResponse && r.defenderResponse);
+
+    if (allRoundsPlayed && battle.status !== "completed") {
+      const completed = await completeBattle(battleId);
+      return NextResponse.json(completed);
+    }
 
     return NextResponse.json(battle);
   } catch (error) {

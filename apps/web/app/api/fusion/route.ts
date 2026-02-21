@@ -4,9 +4,13 @@ import { getDb, shardToRow } from "@/lib/db";
 import { canFuse, performFusion } from "@siphon/core";
 import { getUserSubscription } from "@/lib/subscription-check";
 import { tierMeetsRequirement } from "@/lib/stripe";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { shardIdA, shardIdB, ownerId } = body;
 
@@ -16,6 +20,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+    if (mismatch) return mismatch;
 
     // Fetch both shards
     const shardA = getShardById(shardIdA);

@@ -26,7 +26,7 @@ pub struct Config {
     pub openai_api_key: Option<String>,
 
     /// API key for authenticating HTTP requests to the keeper node.
-    /// When set, all endpoints (except /api/status) require `Authorization: Bearer <key>`.
+    /// Required: all endpoints (except /api/status) require `Authorization: Bearer <key>`.
     #[serde(default)]
     pub api_key: Option<String>,
 
@@ -159,7 +159,7 @@ bootstrap_peers = []
 # openai_api_key = "sk-..."
 
 # API key for authenticating HTTP requests to the keeper node.
-# When set, all endpoints (except /api/status) require: Authorization: Bearer <key>
+# Required for all endpoints (except /api/status): Authorization: Bearer <key>
 # api_key = "your-secret-key-here"
 
 # ShardRegistry contract address on Base Sepolia

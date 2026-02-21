@@ -48,3 +48,14 @@
     background-size: 200px 200px;
   }
 }
+
+@keyframes burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc((var(--dx, 1) * 80px)), calc((var(--dy, -1) * 100px))) scale(0.2);
+  }
+}

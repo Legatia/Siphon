@@ -6,6 +6,7 @@ import {
   SPECIALIZATION_BRANCHES,
   Specialization,
 } from "@siphon/core";
+import { requireSessionAddress } from "@/lib/session-auth";
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +14,9 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { branch } = body;
 
@@ -29,6 +33,13 @@ export async function POST(
       return NextResponse.json(
         { error: "Shard not found" },
         { status: 404 }
+      );
+    }
+
+    if (!shard.ownerId || shard.ownerId.toLowerCase() !== auth.address) {
+      return NextResponse.json(
+        { error: "Only the shard owner can specialize this shard" },
+        { status: 403 }
       );
     }
 

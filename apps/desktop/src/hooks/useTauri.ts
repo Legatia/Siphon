@@ -49,6 +49,23 @@ export interface AgentLoopResult {
   stop_reason: string;
 }
 
+export interface JobTemplate {
+  id: string;
+  name: string;
+  description: string;
+  prompt_template: string;
+}
+
+export interface JobRunResult {
+  template_id: string;
+  template_name: string;
+  rendered_prompt: string;
+  final_response: string | null;
+  stop_reason: string;
+  total_tool_calls: number;
+  artifact_path: string;
+}
+
 // ── IPC wrappers (keys must be snake_case to match Rust params) ─────
 
 export async function executeShell(
@@ -109,5 +126,21 @@ export async function getUserTier(
   return invoke("get_user_tier", {
     api_base_url: apiBaseUrl,
     user_id: userId,
+  });
+}
+
+export async function listJobTemplates(): Promise<JobTemplate[]> {
+  return invoke("list_job_templates");
+}
+
+export async function runJobTemplate(
+  templateId: string,
+  input: string,
+  shardId?: string
+): Promise<JobRunResult> {
+  return invoke("run_job_template", {
+    template_id: templateId,
+    input,
+    shard_id: shardId,
   });
 }

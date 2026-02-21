@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getShardById } from "@/lib/shard-engine";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
+import { ERC8004_IDENTITY_CONFIGURED } from "@/lib/contracts";
+import { verifyIdentityTx } from "@/lib/identity-onchain";
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { shardId, ownerId, txHash, tokenId } = body;
 
@@ -12,6 +18,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+    if (mismatch) return mismatch;
 
     const shard = getShardById(shardId);
     if (!shard) {
@@ -40,6 +49,13 @@ export async function POST(request: NextRequest) {
     // Phase 2: txHash + tokenId → store the real on-chain tokenId
 
     if (!txHash) {
+      if (!ERC8004_IDENTITY_CONFIGURED) {
+        return NextResponse.json(
+          { error: "ERC8004 identity contract is not configured" },
+          { status: 503 }
+        );
+      }
+
       // Phase 1: Prepare mint data — use the shard's actual genomeHash from DB
       // so it matches what's stored in ShardRegistry on-chain
       const genomeHash = shard.genomeHash;
@@ -62,6 +78,14 @@ export async function POST(request: NextRequest) {
     if (!tokenId) {
       return NextResponse.json(
         { error: "tokenId is required when confirming mint with txHash" },
+        { status: 400 }
+      );
+    }
+
+    const verified = await verifyIdentityTx(txHash, auth.address as `0x${string}`);
+    if (!verified.ok) {
+      return NextResponse.json(
+        { error: verified.error },
         { status: 400 }
       );
     }

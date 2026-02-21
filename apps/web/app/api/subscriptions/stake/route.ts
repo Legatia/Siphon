@@ -7,6 +7,7 @@ import {
   SUBSCRIPTION_STAKING_ADDRESS,
 } from "@/lib/contracts";
 import crypto from "crypto";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,9 @@ const TIER_ENUM_MAP: Record<number, string> = {
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { userId, tier, txHash, amount } = body;
 
@@ -32,6 +36,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, userId, "userId");
+    if (mismatch) return mismatch;
 
     const tierConfig = TIER_PRICES[tier];
     if (!tierConfig || tierConfig.stakeAlternative === 0) {

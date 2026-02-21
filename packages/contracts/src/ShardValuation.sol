@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "./ShardRegistry.sol";
-import "./SiphonIdentity.sol";
+import "./IERC8004Identity.sol";
 
 /// @title ShardValuation
 /// @notice Composite on-chain valuation for shards used as loan collateral.
@@ -18,7 +18,7 @@ contract ShardValuation {
     }
 
     ShardRegistry public immutable registry;
-    SiphonIdentity public immutable identity;
+    IERC8004Identity public immutable identity;
 
     /// @dev Minimum number of attestations required for a valid valuation
     uint256 public constant MIN_ATTESTATIONS = 1;
@@ -62,7 +62,7 @@ contract ShardValuation {
 
     constructor(address _registry, address _identity) {
         registry = ShardRegistry(_registry);
-        identity = SiphonIdentity(_identity);
+        identity = IERC8004Identity(_identity);
         governance = msg.sender;
     }
 
@@ -121,7 +121,7 @@ contract ShardValuation {
             value += (a.elo - 1200) * ELO_BONUS_PER_POINT;
         }
 
-        // On-chain reputation bonus from SiphonIdentity
+        // On-chain reputation bonus from ERC-8004 identity contract
         uint256 tokenId = identity.getTokenByGenome(registry.getShard(shardId).genomeHash);
         if (tokenId != 0) {
             int256 rep = identity.getReputation(tokenId);

@@ -29,6 +29,8 @@ fn main() {
             commands::save_config,
             commands::list_shards,
             commands::get_user_tier,
+            commands::list_job_templates,
+            commands::run_job_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Siphon desktop app");

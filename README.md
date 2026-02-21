@@ -1,6 +1,6 @@
 # Siphon Protocol
 
-AI agent capture, training, and lending platform with on-chain ownership on Base.
+AI agent capture and training platform with on-chain ownership on Base (lending is an optional later milestone).
 
 Agents (Shards) are AI creatures that do real work — coding, analysis, creative tasks. They accumulate experience, reputation, and skills over time. Train them, battle them, or use them as collateral for ETH loans.
 
@@ -26,15 +26,15 @@ siphon-protocol/
 | **ShardRegistry** | Shard ownership, transfer, lock/unlock for collateral |
 | **KeeperStaking** | Keeper ETH staking, slashing, rewards |
 | **BattleSettlement** | Battle escrow, settlement, disputes |
-| **SiphonIdentity** | ERC-8004 agent identity + reputation |
-| **ShardValuation** | Keeper-attested composite valuation oracle |
-| **LoanVault** | Agent-as-collateral ETH lending protocol |
+| **ERC-8004 Identity (external)** | Agent identity + reputation source (integrated, not deployed here) |
+| **ShardValuation** | Keeper-attested composite valuation oracle (optional with lending) |
+| **LoanVault** | Agent-as-collateral ETH lending protocol (optional with lending) |
 | **SubscriptionStaking** | USDC staking for Keeper tier subscriptions |
 | **ShardMarketplace** | List/buy/cancel shard sales with 2.5% fee |
 | **SwarmRegistry** | Team composition (2-5 shards per swarm) |
 | **BountyBoard** | ETH escrow for task bounties |
 
-157 Forge tests + 56 Rust tests passing. All 10 contracts are fully wired to the web app and keeper node — loan actions, identity minting, reputation reads, staking, marketplace, bounties, and attestations all execute on-chain.
+157 Forge tests + 56 Rust tests passing. Core launch scope uses registry/staking/battle/marketplace/swarm/bounty/subscription contracts; lending contracts can be deployed later.
 
 ## Loan Protocol
 
@@ -47,13 +47,13 @@ Shards have measurable value (level, ELO, reputation, stats). The loan protocol 
 
 70% max LTV, 5% protocol fee on interest, 1-day grace period. All actions require wallet confirmation — on-chain tx first, then SQLite state sync. See [docs/loan-protocol.md](docs/loan-protocol.md) for full details.
 
-## Identity (ERC-8004)
+## Identity (ERC-8004, external)
 
 Agent identity follows a two-phase flow:
 
-1. **Mint**: API returns genome hash (202) → client calls `SiphonIdentity.mintAgent(genomeHash)` on-chain → confirms with txHash + tokenId
+1. **Mint**: API returns genome hash (202) → client calls external ERC-8004 `mintAgent(genomeHash)` on-chain → confirms with txHash + tokenId
 2. **Validate**: API returns validation data (202) → client calls `addValidation(tokenId, result, evidence)` on-chain → confirms with txHash
-3. **Reputation**: `GET /api/identity/[tokenId]/reputation` reads directly from the SiphonIdentity contract
+3. **Reputation**: `GET /api/identity/[tokenId]/reputation` reads directly from the configured external ERC-8004 contract
 
 ## Shard Types
 
@@ -86,6 +86,9 @@ npm install
 # Copy environment config
 cp .env.example .env.local
 # Fill in your API keys and contract addresses
+# Optional for production rate limiting:
+# KV_REST_API_URL=...
+# KV_REST_API_TOKEN=...
 
 # Start the web app
 npm run dev
@@ -100,6 +103,8 @@ cd packages/contracts
 forge test
 
 # Deploy to Base Sepolia (set DEPLOYER_PRIVATE_KEY in .env)
+# Core-only (default): DEPLOY_LENDING=0
+# Optional lending: DEPLOY_LENDING=1 and set ERC8004_IDENTITY_ADDRESS
 source ../../.env.local
 forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast
 
@@ -161,7 +166,7 @@ curl -X POST http://localhost:3001/api/attest-all \
 
 ## Keeper Node API
 
-All endpoints (except `/api/status`) require `Authorization: Bearer <api_key>` when `api_key` is set in config.
+All endpoints (except `/api/status`) require `Authorization: Bearer <api_key>`. Keeper refuses open mode when `api_key` is missing.
 
 ```
 GET  /api/status                Node health + resource usage (no auth required)
@@ -171,6 +176,7 @@ GET  /api/shards/{id}           Get shard details
 DELETE /api/shards/{id}         Delete a shard
 POST /api/shards/{id}/train     Training interaction (LLM inference)
 GET  /api/shards/{id}/train     Get training history
+POST /api/shards/{id}/capture   Generate/evaluate a capture challenge
 POST /api/shards/{id}/execute   Execute a task (sync or async)
 GET  /api/shards/{id}/actions   Get execution history
 POST /api/shards/{id}/register  Register shard on-chain (ShardRegistry)
@@ -179,6 +185,8 @@ POST /api/shards/{id}/attest    Attest shard value on-chain (ShardValuation)
 POST /api/attest-all            Attest all hosted shards
 GET  /api/jobs/{id}             Poll async job status + results
 ```
+
+For owned shards, `POST /api/shards/{id}/execute` also requires `x-owner-id: <owner_address>` to match the shard owner.
 
 ### Agent Runtime Integration
 

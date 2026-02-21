@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { playSfx, triggerCelebration, updateOnboardingProgress } from "@/lib/game-feedback";
 
 interface Message {
   id: string;
@@ -104,8 +105,16 @@ export function TrainingChat({
       };
 
       setMessages((prev) => [...prev, shardMsg]);
+      playSfx("xp_gain");
+      if (shard.ownerId) {
+        updateOnboardingProgress(shard.ownerId, { trained: true });
+      }
 
       if (data.shard && onXpGain) {
+        if (data.shard.level > shard.level) {
+          playSfx("level_up");
+          triggerCelebration("level_up");
+        }
         onXpGain(data.shard);
       }
     } catch {

@@ -6,6 +6,8 @@ import {
   getActiveLoans,
 } from "@/lib/loan-engine";
 import { LoanState } from "@siphon/core";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
+import { verifyCreateLoanTx } from "@/lib/loan-onchain";
 
 export const dynamic = "force-dynamic";
 
@@ -43,15 +45,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { id, shardId, borrower, principal, interestBps, duration, collateralValue, txHash } = body;
 
-    if (!shardId || !borrower || !principal || interestBps === undefined || !duration) {
+    if (!id || !shardId || !borrower || !principal || interestBps === undefined || !duration || !txHash) {
       return NextResponse.json(
-        { error: "Missing required fields: shardId, borrower, principal, interestBps, duration" },
+        { error: "Missing required fields: id, shardId, borrower, principal, interestBps, duration, txHash" },
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, borrower, "borrower");
+    if (mismatch) return mismatch;
 
     if (interestBps < 0 || interestBps > 5000) {
       return NextResponse.json(
@@ -63,6 +71,22 @@ export async function POST(request: NextRequest) {
     if (duration < 3600 || duration > 31536000) {
       return NextResponse.json(
         { error: "Duration must be 1 hour to 365 days (in seconds)" },
+        { status: 400 }
+      );
+    }
+
+    const verified = await verifyCreateLoanTx({
+      txHash,
+      expectedFrom: auth.address,
+      loanId: id,
+      shardId,
+      principal,
+      interestBps,
+      duration,
+    });
+    if (!verified.ok) {
+      return NextResponse.json(
+        { error: verified.error },
         { status: 400 }
       );
     }

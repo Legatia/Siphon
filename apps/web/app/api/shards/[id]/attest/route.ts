@@ -8,6 +8,7 @@ import {
   SHARD_VALUATION_ADDRESS,
   idToBytes32,
 } from "@/lib/contracts";
+import { requireSessionAddress } from "@/lib/session-auth";
 
 /**
  * POST /api/shards/[id]/attest
@@ -20,6 +21,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const { id: shardId } = await params;
 
     const shard = getShardById(shardId);
@@ -31,6 +35,13 @@ export async function POST(
       return NextResponse.json(
         { error: "Cannot attest wild shards" },
         { status: 400 }
+      );
+    }
+
+    if (!shard.ownerId || shard.ownerId.toLowerCase() !== auth.address) {
+      return NextResponse.json(
+        { error: "Only the shard owner can request attestation" },
+        { status: 403 }
       );
     }
 

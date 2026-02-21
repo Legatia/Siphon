@@ -35,7 +35,11 @@ export default function Farm() {
       </header>
 
       <div className="flex-1 flex flex-col overflow-auto">
-        <ShardScene className="h-64 w-full" />
+        <ShardScene
+          className="h-64 w-full"
+          variant={shards[0]?.shard_type}
+          color={SHARD_TYPE_COLORS[shards[0]?.shard_type] ?? "#00d4aa"}
+        />
 
         <div className="px-6 py-4 flex-1">
           <h2 className="text-sm font-medium text-ghost uppercase tracking-wider mb-3">

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { ReputationEntry } from "@siphon/core";
 import {
   publicClient,
-  SIPHON_IDENTITY_ABI,
-  SIPHON_IDENTITY_ADDRESS,
+  ERC8004_IDENTITY_ABI,
+  ERC8004_IDENTITY_ADDRESS,
 } from "@/lib/contracts";
 
 export async function GET(
@@ -24,16 +24,16 @@ export async function GET(
 
   try {
     const rep = await publicClient.readContract({
-      address: SIPHON_IDENTITY_ADDRESS as `0x${string}`,
-      abi: SIPHON_IDENTITY_ABI,
+      address: ERC8004_IDENTITY_ADDRESS as `0x${string}`,
+      abi: ERC8004_IDENTITY_ABI,
       functionName: "getReputation",
       args: [BigInt(tokenId)],
     });
     reputation = Number(rep);
 
     const agent = await publicClient.readContract({
-      address: SIPHON_IDENTITY_ADDRESS as `0x${string}`,
-      abi: SIPHON_IDENTITY_ABI,
+      address: ERC8004_IDENTITY_ADDRESS as `0x${string}`,
+      abi: ERC8004_IDENTITY_ABI,
       functionName: "getAgent",
       args: [BigInt(tokenId)],
     }) as any;

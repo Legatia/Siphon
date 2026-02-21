@@ -1,7 +1,21 @@
 import Database from "better-sqlite3";
 import path from "path";
 
-const DB_PATH = path.join(process.cwd(), "siphon.db");
+const DB_PATH = resolveDbPath();
+
+function resolveDbPath(): string {
+  const explicit = process.env.SIPHON_DB_PATH;
+  if (explicit && explicit.trim()) {
+    return explicit.trim();
+  }
+
+  // Vercel/serverless filesystems are read-only except /tmp.
+  if (process.env.VERCEL) {
+    return "/tmp/siphon.db";
+  }
+
+  return path.join(process.cwd(), "siphon.db");
+}
 
 let db: Database.Database | null = null;
 
@@ -234,7 +248,18 @@ function migrateSchema(db: Database.Database) {
       description TEXT NOT NULL,
       deadline INTEGER NOT NULL,
       state TEXT NOT NULL DEFAULT 'Open',
+      execution_status TEXT,
+      execution_result TEXT,
       tx_hash TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS capture_sessions (
+      id TEXT PRIMARY KEY,
+      shard_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      challenge_json TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );
 
@@ -250,15 +275,56 @@ function migrateSchema(db: Database.Database) {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS ranked_seasons (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      starts_at INTEGER NOT NULL,
+      ends_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS season_stats (
+      id TEXT PRIMARY KEY,
+      season_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      wins INTEGER NOT NULL DEFAULT 0,
+      losses INTEGER NOT NULL DEFAULT 0,
+      draws INTEGER NOT NULL DEFAULT 0,
+      points INTEGER NOT NULL DEFAULT 0,
+      elo_delta INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS achievements_unlocked (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      achievement_key TEXT NOT NULL,
+      unlocked_at INTEGER NOT NULL,
+      meta_json TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_battles_status ON battles(status);
     CREATE INDEX IF NOT EXISTS idx_matchmaking_mode ON matchmaking_queue(mode);
     CREATE INDEX IF NOT EXISTS idx_cosmetic_inv_owner ON cosmetic_inventory(owner_id);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_bounties_state ON bounties(state);
     CREATE INDEX IF NOT EXISTS idx_bounties_poster ON bounties(poster);
+    CREATE INDEX IF NOT EXISTS idx_capture_sessions_owner ON capture_sessions(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_capture_sessions_shard ON capture_sessions(shard_id);
     CREATE INDEX IF NOT EXISTS idx_marketplace_state ON marketplace_listings(state);
     CREATE INDEX IF NOT EXISTS idx_marketplace_seller ON marketplace_listings(seller);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_season_stats_unique ON season_stats(season_id, owner_id);
+    CREATE INDEX IF NOT EXISTS idx_season_stats_points ON season_stats(season_id, points DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_achievements_unique ON achievements_unlocked(owner_id, achievement_key);
   `);
+
+  if (!hasColumn(db, "bounties", "execution_status")) {
+    db.exec(`ALTER TABLE bounties ADD COLUMN execution_status TEXT`);
+  }
+  if (!hasColumn(db, "bounties", "execution_result")) {
+    db.exec(`ALTER TABLE bounties ADD COLUMN execution_result TEXT`);
+  }
 }
 
 export function shardToRow(shard: import("@siphon/core").Shard) {

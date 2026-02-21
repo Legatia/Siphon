@@ -20,6 +20,7 @@ packages/contracts/broadcast/
 # SQLite databases
 *.db
 *.db-journal
+*.db-shm
 *.db-wal
 
 # Environment

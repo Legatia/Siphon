@@ -5,6 +5,7 @@ import { WagmiProvider, useAccount, useSwitchChain } from "wagmi";
 import { config } from "@/lib/wagmi";
 import { useState, useEffect, type ReactNode } from "react";
 import { baseSepolia } from "wagmi/chains";
+import { GameFxLayer } from "@/components/game-fx-layer";
 
 function ChainGuard({ children }: { children: ReactNode }) {
   const { chain, isConnected } = useAccount();
@@ -54,7 +55,10 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ChainGuard>{children}</ChainGuard>
+        <ChainGuard>
+          {children}
+          <GameFxLayer />
+        </ChainGuard>
       </QueryClientProvider>
     </WagmiProvider>
   );

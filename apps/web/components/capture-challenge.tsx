@@ -22,6 +22,7 @@ import {
   publicClient,
   idToBytes32,
 } from "@/lib/contracts";
+import { playSfx, triggerCelebration, updateOnboardingProgress } from "@/lib/game-feedback";
 
 interface CaptureDialogProps {
   shard: WildShard | null;
@@ -47,6 +48,7 @@ export function CaptureDialog({
   const [feedback, setFeedback] = useState("");
   const [timeLeft, setTimeLeft] = useState(60);
   const [capturedShard, setCapturedShard] = useState<any>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
 
   const loadChallenge = useCallback(async () => {
     if (!shard) return;
@@ -54,6 +56,7 @@ export function CaptureDialog({
     setAnswer("");
     setFeedback("");
     setTimeLeft(60);
+    setChallengeId(null);
 
     try {
       const res = await fetch("/api/shards/capture", {
@@ -74,6 +77,7 @@ export function CaptureDialog({
 
       if (data.challenge) {
         setChallenge(data.challenge);
+        setChallengeId(data.challengeId ?? null);
         setPhase("challenge");
       }
     } catch {
@@ -93,6 +97,7 @@ export function CaptureDialog({
   useEffect(() => {
     if (phase !== "challenge") return;
     if (timeLeft <= 0) {
+      playSfx("capture_fail");
       setPhase("failure");
       setFeedback("Time's up! The Shard drifted away.");
       return;
@@ -102,14 +107,14 @@ export function CaptureDialog({
   }, [phase, timeLeft]);
 
   const submitAnswer = async () => {
-    if (!shard || !answer.trim()) return;
+    if (!shard || !answer.trim() || !challengeId) return;
     setPhase("submitting");
 
     try {
     const res = await fetch("/api/shards/capture", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shardId: shard.id, answer, ownerId }),
+      body: JSON.stringify({ shardId: shard.id, answer, ownerId, challengeId }),
     });
 
     const data = await res.json();
@@ -126,6 +131,9 @@ export function CaptureDialog({
 
     if (data.success) {
       setCapturedShard(data.shard);
+      playSfx("capture_success");
+      triggerCelebration("capture");
+      updateOnboardingProgress(ownerId, { captured: true });
 
       // Try on-chain registration if wallet connected
       if (data.needsOnChainRegistration && address) {
@@ -153,6 +161,7 @@ export function CaptureDialog({
 
       setPhase("success");
     } else {
+      playSfx("capture_fail");
       setPhase("failure");
     }
     } catch {

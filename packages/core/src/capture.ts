@@ -128,10 +128,23 @@ function pickByHash(hash: string, arrayLength: number): number {
   return byte % arrayLength;
 }
 
-export function generateChallenge(shard: Shard): CaptureChallenge {
+function buildChallengeHash(shard: Shard, seed?: string): string {
+  if (!seed) return shard.genomeHash;
+  const base = `${shard.genomeHash}:${seed}`;
+  let hash = 0;
+  for (let i = 0; i < base.length; i++) {
+    hash = (hash << 5) - hash + base.charCodeAt(i);
+    hash |= 0;
+  }
+  const normalized = Math.abs(hash).toString(16).padStart(8, "0");
+  return `0x${normalized}${shard.genomeHash.slice(10)}`;
+}
+
+export function generateChallenge(shard: Shard, seed?: string): CaptureChallenge {
+  const challengeHash = buildChallengeHash(shard, seed);
   const difficulty = Math.min(
     10,
-    Math.floor((parseInt(shard.genomeHash.slice(4, 6), 16) / 255) * 5) + 1
+    Math.floor((parseInt(challengeHash.slice(4, 6), 16) / 255) * 5) + 1
   );
 
   const baseChallenge = {
@@ -143,7 +156,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
 
   switch (shard.type) {
     case ShardType.Oracle: {
-      const idx = pickByHash(shard.genomeHash, PATTERN_SEQUENCES.length);
+      const idx = pickByHash(challengeHash, PATTERN_SEQUENCES.length);
       const pattern = PATTERN_SEQUENCES[idx];
       return {
         ...baseChallenge,
@@ -154,7 +167,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Cipher: {
-      const idx = pickByHash(shard.genomeHash, CIPHER_MESSAGES.length);
+      const idx = pickByHash(challengeHash, CIPHER_MESSAGES.length);
       const cipher = CIPHER_MESSAGES[idx];
       return {
         ...baseChallenge,
@@ -165,7 +178,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Scribe: {
-      const idx = pickByHash(shard.genomeHash, SUMMARIZE_PASSAGES.length);
+      const idx = pickByHash(challengeHash, SUMMARIZE_PASSAGES.length);
       const passage = SUMMARIZE_PASSAGES[idx];
       return {
         ...baseChallenge,
@@ -176,7 +189,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Muse: {
-      const idx = pickByHash(shard.genomeHash, CREATIVE_PROMPTS.length);
+      const idx = pickByHash(challengeHash, CREATIVE_PROMPTS.length);
       return {
         ...baseChallenge,
         type: ChallengeType.CreativePrompt,
@@ -185,7 +198,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Architect: {
-      const idx = pickByHash(shard.genomeHash, ARCHITECTURE_CHALLENGES.length);
+      const idx = pickByHash(challengeHash, ARCHITECTURE_CHALLENGES.length);
       const challenge = ARCHITECTURE_CHALLENGES[idx];
       return {
         ...baseChallenge,
@@ -196,7 +209,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Advocate: {
-      const idx = pickByHash(shard.genomeHash, ARGUMENT_CHALLENGES.length);
+      const idx = pickByHash(challengeHash, ARGUMENT_CHALLENGES.length);
       const challenge = ARGUMENT_CHALLENGES[idx];
       return {
         ...baseChallenge,
@@ -207,7 +220,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Sentinel: {
-      const idx = pickByHash(shard.genomeHash, SECURITY_CHALLENGES.length);
+      const idx = pickByHash(challengeHash, SECURITY_CHALLENGES.length);
       const challenge = SECURITY_CHALLENGES[idx];
       return {
         ...baseChallenge,
@@ -218,7 +231,7 @@ export function generateChallenge(shard: Shard): CaptureChallenge {
     }
 
     case ShardType.Mirror: {
-      const idx = pickByHash(shard.genomeHash, EMOTIONAL_CHALLENGES.length);
+      const idx = pickByHash(challengeHash, EMOTIONAL_CHALLENGES.length);
       const challenge = EMOTIONAL_CHALLENGES[idx];
       return {
         ...baseChallenge,

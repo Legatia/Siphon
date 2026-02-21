@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const ownerId = searchParams.get("ownerId");
+  const auth = await requireSessionAddress();
+  if ("error" in auth) return auth.error;
 
-  if (!ownerId) {
-    return NextResponse.json(
-      { error: "Missing ownerId query parameter" },
-      { status: 400 }
-    );
-  }
+  const { searchParams } = new URL(request.url);
+  const ownerId = searchParams.get("ownerId") ?? auth.address;
+  const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+  if (mismatch) return mismatch;
 
   const db = getDb();
   const rows = db

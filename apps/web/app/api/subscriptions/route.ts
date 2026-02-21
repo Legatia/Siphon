@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getStripe, TIER_PRICES, getShardLimit, getMessageCap } from "@/lib/stripe";
 import crypto from "crypto";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,13 @@ function getMonthStart(): number {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
+  const auth = await requireSessionAddress();
+  if ("error" in auth) return auth.error;
 
-  if (!userId) {
-    return NextResponse.json(
-      { error: "Missing userId query parameter" },
-      { status: 400 }
-    );
-  }
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId") ?? auth.address;
+  const mismatch = ensureAddressMatch(auth.address, userId, "userId");
+  if (mismatch) return mismatch;
 
   const db = getDb();
   const row = db
@@ -73,6 +72,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { tier, userId, returnUrl } = body;
 
@@ -82,6 +84,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, userId, "userId");
+    if (mismatch) return mismatch;
 
     const tierConfig = TIER_PRICES[tier];
     if (!tierConfig || !tierConfig.priceId) {

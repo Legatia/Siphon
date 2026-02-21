@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completeBattle, getBattleById } from "@/lib/battle-engine";
+import { requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,16 +10,26 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const battle = getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
 
-    if (battle.status === "completed") {
+    const isParticipant =
+      auth.address === battle.challenger.keeperId.toLowerCase() ||
+      auth.address === battle.defender.keeperId.toLowerCase();
+    if (!isParticipant) {
       return NextResponse.json(
-        { error: "Battle is already completed" },
-        { status: 400 }
+        { error: "Only battle participants can settle this battle" },
+        { status: 403 }
       );
+    }
+
+    if (battle.status === "completed") {
+      return NextResponse.json(battle);
     }
 
     // Check that there are rounds with responses to judge

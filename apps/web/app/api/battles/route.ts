@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBattle, getBattlesForOwner } from "@/lib/battle-engine";
+import { getShardById } from "@/lib/shard-engine";
 import { BattleMode } from "@siphon/core";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const ownerId = searchParams.get("ownerId");
+  const auth = await requireSessionAddress();
+  if ("error" in auth) return auth.error;
 
-  if (!ownerId) {
-    return NextResponse.json(
-      { error: "ownerId query parameter is required" },
-      { status: 400 }
-    );
-  }
+  const { searchParams } = new URL(request.url);
+  const ownerId = searchParams.get("ownerId") ?? auth.address;
+  const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+  if (mismatch) return mismatch;
 
   try {
     const battles = getBattlesForOwner(ownerId);
@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const {
       challengerShardId,
@@ -46,6 +49,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const mismatch = ensureAddressMatch(auth.address, challengerOwnerId, "challengerOwnerId");
+    if (mismatch) return mismatch;
+
+    const challengerShard = getShardById(challengerShardId);
+    if (!challengerShard || challengerShard.ownerId?.toLowerCase() !== auth.address) {
+      return NextResponse.json(
+        { error: "Authenticated user does not own challenger shard" },
+        { status: 403 }
+      );
+    }
+
     if (!Object.values(BattleMode).includes(mode)) {
       return NextResponse.json(
         { error: "Invalid battle mode" },
@@ -59,6 +73,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "escrowTxHash required for staked battles" },
         { status: 400 }
+      );
+    }
+    if (stake > 0 && !process.env.ARBITER_PRIVATE_KEY) {
+      return NextResponse.json(
+        { error: "Staked battles are temporarily unavailable: ARBITER_PRIVATE_KEY is not configured" },
+        { status: 503 }
       );
     }
 

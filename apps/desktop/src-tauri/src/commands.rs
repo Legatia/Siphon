@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use siphon_keeper::{
     agent_loop::{self, AgentLoopConfig, AgentLoopResult},
@@ -212,7 +214,7 @@ pub async fn list_shards(
     api_base_url: Option<String>,
     owner_id: Option<String>,
 ) -> Result<Vec<ShardInfo>, String> {
-    let base = api_base_url.unwrap_or_else(|| "http://localhost:3000".to_string());
+    let base = api_base_url.unwrap_or_else(|| "http://localhost:3001".to_string());
     let url = match &owner_id {
         Some(id) => format!("{}/api/shards?ownerId={}", base, id),
         None => format!("{}/api/shards", base),
@@ -280,4 +282,124 @@ pub async fn get_user_tier(
             shard_limit: 0,
         }),
     }
+}
+
+// ── Job templates ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobTemplate {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub prompt_template: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobRunResult {
+    pub template_id: String,
+    pub template_name: String,
+    pub rendered_prompt: String,
+    pub final_response: Option<String>,
+    pub stop_reason: agent_loop::StopReason,
+    pub total_tool_calls: usize,
+    pub artifact_path: String,
+}
+
+fn built_in_job_templates() -> Vec<JobTemplate> {
+    vec![
+        JobTemplate {
+            id: "bug-triage".to_string(),
+            name: "Bug Triage".to_string(),
+            description: "Analyze a bug report and produce root-cause hypotheses plus next steps.".to_string(),
+            prompt_template: "Analyze this bug report and return: (1) likely root causes, (2) validation steps, (3) fix plan.\n\nBug report:\n{{input}}".to_string(),
+        },
+        JobTemplate {
+            id: "test-generator".to_string(),
+            name: "Test Generator".to_string(),
+            description: "Generate practical unit/integration test cases for a module.".to_string(),
+            prompt_template: "Generate high-value test cases for this module. Include edge cases and failure modes.\n\nModule/context:\n{{input}}".to_string(),
+        },
+        JobTemplate {
+            id: "docs-synth".to_string(),
+            name: "Docs Synthesizer".to_string(),
+            description: "Convert notes into clean docs with action items.".to_string(),
+            prompt_template: "Turn these raw notes into concise documentation with headings, decisions, and action items.\n\nNotes:\n{{input}}".to_string(),
+        },
+        JobTemplate {
+            id: "research-brief".to_string(),
+            name: "Research Brief".to_string(),
+            description: "Create a decision-ready brief from a question.".to_string(),
+            prompt_template: "Prepare a decision brief: summary, options, tradeoffs, recommendation, and open questions.\n\nResearch question:\n{{input}}".to_string(),
+        },
+    ]
+}
+
+#[tauri::command]
+pub fn list_job_templates() -> Vec<JobTemplate> {
+    built_in_job_templates()
+}
+
+#[tauri::command]
+pub async fn run_job_template(
+    app_state: State<'_, AppState>,
+    template_id: String,
+    input: String,
+    shard_id: Option<String>,
+) -> Result<JobRunResult, String> {
+    let template = built_in_job_templates()
+        .into_iter()
+        .find(|t| t.id == template_id)
+        .ok_or_else(|| format!("Unknown template: {}", template_id))?;
+
+    let rendered_prompt = template.prompt_template.replace("{{input}}", input.trim());
+
+    let (inf_cfg, data_dir) = {
+        let cfg = app_state.config.lock().map_err(|e| e.to_string())?;
+        (inference_config_from(&cfg), cfg.data_dir.clone())
+    };
+    let sid = shard_id.unwrap_or_else(|| "desktop".to_string());
+    let tools = inference::shard_tool_definitions();
+    let loop_cfg = AgentLoopConfig::default();
+    let system_prompt = "You are a Siphon shard worker. Complete the job template task and produce practical, concrete output.";
+
+    let loop_result = agent_loop::run_agent_loop(
+        &inf_cfg,
+        system_prompt,
+        &rendered_prompt,
+        &tools,
+        &loop_cfg,
+        &data_dir,
+        &sid,
+    )
+    .await;
+
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs();
+    let artifact_dir = Path::new(&data_dir).join("artifacts").join(&sid);
+    std::fs::create_dir_all(&artifact_dir).map_err(|e| e.to_string())?;
+    let artifact_path = artifact_dir.join(format!("{}-{}.md", template.id, ts));
+    let artifact_contents = format!(
+        "# {}\n\n## Prompt\n{}\n\n## Output\n{}\n\n## Meta\n- stop_reason: {:?}\n- tool_calls: {}\n",
+        template.name,
+        rendered_prompt,
+        loop_result
+            .final_response
+            .clone()
+            .unwrap_or_else(|| "No final response generated.".to_string()),
+        loop_result.stop_reason,
+        loop_result.total_tool_calls
+    );
+    std::fs::write(&artifact_path, artifact_contents).map_err(|e| e.to_string())?;
+
+    Ok(JobRunResult {
+        template_id: template.id,
+        template_name: template.name,
+        rendered_prompt,
+        final_response: loop_result.final_response,
+        stop_reason: loop_result.stop_reason,
+        total_tool_calls: loop_result.total_tool_calls,
+        artifact_path: artifact_path.to_string_lossy().to_string(),
+    })
 }

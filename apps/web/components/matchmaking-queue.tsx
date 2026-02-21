@@ -56,6 +56,8 @@ export function MatchmakingQueue({ entry, onCancel }: MatchmakingQueueProps) {
                 Mode: <span className="text-siphon-teal capitalize">{entry.mode.replace("_", " ")}</span>
                 {" | "}
                 ELO: <span className="text-foam">{entry.eloRating}</span>
+                {" | "}
+                Range: <span className="text-foam">±{entry.searchRange ?? 200}</span>
                 {entry.stakeAmount > 0 && (
                   <>
                     {" | "}
@@ -98,9 +100,9 @@ export function MatchmakingQueue({ entry, onCancel }: MatchmakingQueueProps) {
             }}
           />
         </div>
-        {elapsed > 60 && (
+        {elapsed > 30 && (
           <p className="text-[10px] text-ghost/40 mt-1.5">
-            Expanding search range to find a suitable opponent...
+            Expanding search range in real time...
           </p>
         )}
       </CardContent>

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import crypto from "crypto";
+import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSessionAddress();
+    if ("error" in auth) return auth.error;
+
     const body = await request.json();
     const { cosmeticId, ownerId } = body;
 
@@ -13,6 +17,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
+    if (mismatch) return mismatch;
 
     const db = getDb();
 

@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import {
   runAgentLoop,
+  runJobTemplate,
   listShards,
+  listJobTemplates,
   type AgentLoopResult,
   type ShardInfo,
+  type JobTemplate,
 } from "@/hooks/useTauri";
-import { Send, Loader2, ChevronDown } from "lucide-react";
+import { Send, Loader2, ChevronDown, WandSparkles } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "error";
@@ -17,11 +20,14 @@ export default function Factory() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [shards, setShards] = useState<ShardInfo[]>([]);
+  const [templates, setTemplates] = useState<JobTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("custom");
   const [selectedShard, setSelectedShard] = useState<string>("desktop");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     listShards().then(setShards).catch(() => {});
+    listJobTemplates().then(setTemplates).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -37,10 +43,21 @@ export default function Factory() {
     setLoading(true);
 
     try {
-      const result: AgentLoopResult = await runAgentLoop(text, selectedShard);
-      const response =
-        result.final_response ??
-        `Agent completed with ${result.total_tool_calls} tool calls (${result.stop_reason})`;
+      let response: string;
+      if (selectedTemplate === "custom") {
+        const result: AgentLoopResult = await runAgentLoop(text, selectedShard);
+        response =
+          result.final_response ??
+          `Agent completed with ${result.total_tool_calls} tool calls (${result.stop_reason})`;
+      } else {
+        const result = await runJobTemplate(selectedTemplate, text, selectedShard);
+        response = [
+          result.final_response ??
+            `Job completed with ${result.total_tool_calls} tool calls (${result.stop_reason})`,
+          "",
+          `Artifact: ${result.artifact_path}`,
+        ].join("\n");
+      }
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: response },
@@ -65,23 +82,47 @@ export default function Factory() {
           </p>
         </div>
 
-        <div className="relative">
-          <select
-            value={selectedShard}
-            onChange={(e) => setSelectedShard(e.target.value)}
-            className="appearance-none bg-midnight/60 border border-siphon-teal/20 rounded-lg pl-3 pr-8 py-1.5 text-sm text-foam focus:outline-none focus:border-siphon-teal/50"
-          >
-            <option value="desktop">Desktop (default)</option>
-            {shards.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.shard_type})
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={14}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-ghost pointer-events-none"
-          />
+        <div className="flex gap-2">
+          <div className="relative">
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+              className="appearance-none bg-midnight/60 border border-siphon-teal/20 rounded-lg pl-3 pr-8 py-1.5 text-sm text-foam focus:outline-none focus:border-siphon-teal/50"
+            >
+              <option value="custom">Custom Prompt</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <WandSparkles
+              size={14}
+              className="absolute right-6 top-1/2 -translate-y-1/2 text-ghost pointer-events-none"
+            />
+            <ChevronDown
+              size={14}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ghost pointer-events-none"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={selectedShard}
+              onChange={(e) => setSelectedShard(e.target.value)}
+              className="appearance-none bg-midnight/60 border border-siphon-teal/20 rounded-lg pl-3 pr-8 py-1.5 text-sm text-foam focus:outline-none focus:border-siphon-teal/50"
+            >
+              <option value="desktop">Desktop (default)</option>
+              {shards.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.shard_type})
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ghost pointer-events-none"
+            />
+          </div>
         </div>
       </header>
 
@@ -91,7 +132,10 @@ export default function Factory() {
       >
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-ghost text-sm">
-            <p>Send a message to start the agent loop.</p>
+            <p>
+              Choose a template and provide input to produce a structured artifact,
+              or use Custom Prompt.
+            </p>
           </div>
         )}
 

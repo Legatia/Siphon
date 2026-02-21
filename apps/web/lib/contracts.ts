@@ -234,7 +234,7 @@ export const BATTLE_SETTLEMENT_ABI = [
   },
 ] as const;
 
-export const SIPHON_IDENTITY_ABI = [
+export const ERC8004_IDENTITY_ABI = [
   {
     type: "function",
     name: "mintAgent",
@@ -321,6 +321,9 @@ export const SIPHON_IDENTITY_ABI = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+// Backward-compatible export name used in existing UI routes/components.
+export const SIPHON_IDENTITY_ABI = ERC8004_IDENTITY_ABI;
 
 // --- Lock extensions on ShardRegistry ---
 export const SHARD_REGISTRY_LOCK_ABI = [
@@ -579,45 +582,69 @@ export const LOAN_VAULT_ABI = [
   },
 ] as const;
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+export const ZERO_EVM_ADDRESS = ZERO_ADDRESS as `0x${string}`;
+
+function readAddressEnv(envKey: string): `0x${string}` {
+  const value = process.env[envKey] as `0x${string}` | undefined;
+  if (value && value !== ZERO_ADDRESS) {
+    return value;
+  }
+
+  const msg = `${envKey} is not configured. On-chain actions for this contract will fail until a real address is set.`;
+  const warned = (globalThis as { __siphonAddressWarned?: Set<string> }).__siphonAddressWarned
+    ?? new Set<string>();
+  (globalThis as { __siphonAddressWarned?: Set<string> }).__siphonAddressWarned = warned;
+  if (warned.has(envKey)) {
+    return ZERO_ADDRESS as `0x${string}`;
+  }
+  warned.add(envKey);
+
+  if (process.env.NODE_ENV === "production") {
+    console.error(msg);
+  } else {
+    console.warn(msg);
+  }
+  return ZERO_ADDRESS as `0x${string}`;
+}
+
 export const SHARD_REGISTRY_ADDRESS =
-  (process.env.NEXT_PUBLIC_SHARD_REGISTRY_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_SHARD_REGISTRY_ADDRESS");
 
 export const KEEPER_STAKING_ADDRESS =
-  (process.env.NEXT_PUBLIC_KEEPER_STAKING_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_KEEPER_STAKING_ADDRESS");
 
 export const BATTLE_SETTLEMENT_ADDRESS =
-  (process.env.NEXT_PUBLIC_BATTLE_SETTLEMENT_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_BATTLE_SETTLEMENT_ADDRESS");
 
-export const SIPHON_IDENTITY_ADDRESS =
-  (process.env.NEXT_PUBLIC_SIPHON_IDENTITY_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+export const ERC8004_IDENTITY_ADDRESS =
+  (process.env.NEXT_PUBLIC_ERC8004_IDENTITY_ADDRESS as `0x${string}` | undefined)
+  ?? readAddressEnv("NEXT_PUBLIC_SIPHON_IDENTITY_ADDRESS");
+
+// Backward-compatible export name used in existing UI routes/components.
+export const SIPHON_IDENTITY_ADDRESS = ERC8004_IDENTITY_ADDRESS;
+export const ERC8004_IDENTITY_CONFIGURED =
+  ERC8004_IDENTITY_ADDRESS.toLowerCase() !== ZERO_ADDRESS;
 
 export const SHARD_VALUATION_ADDRESS =
-  (process.env.NEXT_PUBLIC_SHARD_VALUATION_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_SHARD_VALUATION_ADDRESS");
 
 export const LOAN_VAULT_ADDRESS =
-  (process.env.NEXT_PUBLIC_LOAN_VAULT_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_LOAN_VAULT_ADDRESS");
+export const LOAN_VAULT_CONFIGURED =
+  LOAN_VAULT_ADDRESS.toLowerCase() !== ZERO_ADDRESS;
 
 export const SUBSCRIPTION_STAKING_ADDRESS =
-  (process.env.NEXT_PUBLIC_SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_SUBSCRIPTION_STAKING_ADDRESS");
 
 export const SHARD_MARKETPLACE_ADDRESS =
-  (process.env.NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS");
 
 export const SWARM_REGISTRY_ADDRESS =
-  (process.env.NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS");
 
 export const BOUNTY_BOARD_ADDRESS =
-  (process.env.NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS as `0x${string}`) ??
-  "0x0000000000000000000000000000000000000000";
+  readAddressEnv("NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS");
 
 // USDC on Base Sepolia
 export const USDC_ADDRESS =
