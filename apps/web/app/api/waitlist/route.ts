@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbGet, dbRun } from "@/lib/db";
-import crypto from "crypto";
+
+const SHEET_URL = process.env.GOOGLE_SHEET_WAITLIST_URL;
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Basic email validation
     const normalized = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       return NextResponse.json(
@@ -23,23 +22,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicate
-    const existing = await dbGet<{ id: string }>(
-      "SELECT id FROM waitlist_subscribers WHERE email = ?",
-      normalized
-    );
-
-    if (existing) {
-      return NextResponse.json({ ok: true, message: "Already subscribed" });
+    if (!SHEET_URL) {
+      console.error("GOOGLE_SHEET_WAITLIST_URL not configured");
+      return NextResponse.json(
+        { error: "Waitlist not configured" },
+        { status: 503 }
+      );
     }
 
-    await dbRun(
-      "INSERT INTO waitlist_subscribers (id, email, source, created_at) VALUES (?, ?, ?, ?)",
-      crypto.randomUUID(),
-      normalized,
-      source || "hero",
-      Date.now()
-    );
+    await fetch(SHEET_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalized, source: source || "hero" }),
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
