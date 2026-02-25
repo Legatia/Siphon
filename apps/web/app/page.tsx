@@ -175,7 +175,7 @@ function WaitlistForm({ source = "hero" }: { source?: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto">
+    <form action="/api/waitlist" method="POST" onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto">
       <input
         type="email"
         required
