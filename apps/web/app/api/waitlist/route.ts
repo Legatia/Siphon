@@ -30,11 +30,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await fetch(SHEET_URL, {
+    // Google Apps Script redirects (302) on POST — follow it.
+    // Use text/plain to avoid CORS preflight issues on the Apps Script side.
+    const res = await fetch(SHEET_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: normalized, source: source || "hero" }),
+      headers: { "Content-Type": "text/plain" },
+      redirect: "follow",
     });
+
+    if (!res.ok) {
+      console.error("Sheet POST failed:", res.status, await res.text().catch(() => ""));
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
