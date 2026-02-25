@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ interface CosmeticCardProps {
   onAction?: () => void;
   actionLabel?: string;
   actionDisabled?: boolean;
+  className?: string;
+  style?: CSSProperties;
 }
 
 export function CosmeticCard({
@@ -41,17 +44,20 @@ export function CosmeticCard({
   onAction,
   actionLabel,
   actionDisabled = false,
+  className,
+  style,
 }: CosmeticCardProps) {
   const rarityClass = RARITY_COLORS[cosmetic.rarity] || RARITY_COLORS.common;
   const glowClass = RARITY_GLOW[cosmetic.rarity] || "";
 
   return (
     <Card
-      className={`transition-all hover:border-siphon-teal/30 ${glowClass}`}
+      className={`transition-all border-siphon-teal/20 bg-[#071123]/88 hover:border-siphon-teal/40 ${glowClass} ${className ?? ""}`}
+      style={style}
     >
       <CardContent className="p-4 space-y-3">
         {/* Preview */}
-        <div className="flex justify-center">
+        <div className="flex justify-center border border-siphon-teal/12 bg-abyss/50 py-3">
           <CosmeticPreview
             slot={cosmetic.slot}
             previewData={cosmetic.previewData}

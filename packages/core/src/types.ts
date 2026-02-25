@@ -179,6 +179,7 @@ export interface Battle {
   stakeAmount: number;
   escrowTxHash: string | null;
   settlementTxHash: string | null;
+  finalizationTxHash?: string | null;
   judgeModel: string;
   createdAt: number;
   completedAt: number | null;

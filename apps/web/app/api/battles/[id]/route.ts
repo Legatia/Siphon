@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeBattle, getBattleById } from "@/lib/battle-engine";
-import { getDb } from "@/lib/db";
+import { completeBattle, getBattleById, syncBattleOnChainSettlement } from "@/lib/battle-engine";
+import { dbRun } from "@/lib/db";
 import { PROTOCOL_CONSTANTS, type Battle, type BattleRound } from "@siphon/core";
 import { requireSessionAddress } from "@/lib/session-auth";
+import { logActivationEvent } from "@/lib/activation-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    let battle = getBattleById(id);
+    let battle = await getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -31,8 +32,8 @@ export async function GET(
         }
       }
       if (mutated) {
-        const db = getDb();
-        db.prepare("UPDATE battles SET rounds_json = ? WHERE id = ?").run(
+        await dbRun(
+          "UPDATE battles SET rounds_json = ? WHERE id = ?",
           JSON.stringify(battle.rounds),
           id
         );
@@ -43,6 +44,10 @@ export async function GET(
           battle = await completeBattle(id);
         }
       }
+    }
+    if (battle.status === "completed" && battle.stakeAmount > 0) {
+      const synced = await syncBattleOnChainSettlement(id);
+      if (synced) battle = synced;
     }
     return NextResponse.json(battle);
   } catch (error) {
@@ -72,7 +77,7 @@ export async function PUT(
       );
     }
 
-    const battle = getBattleById(battleId);
+    const battle = await getBattleById(battleId);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -132,6 +137,15 @@ export async function PUT(
       );
     }
 
+    await logActivationEvent({
+      ownerId: auth.address,
+      eventType: "battled",
+      source: "api:battles/submit",
+      entityId: battleId,
+      uniqueKey: `${auth.address}:battled:${battleId}`,
+      metadata: { round, shardId, mode: battle.mode, timedOut: !!timedOut },
+    });
+
     // If both responses are in, judge the round
     if (battleRound.challengerResponse && battleRound.defenderResponse) {
       const { judgeBattleRound } = await import("@/lib/battle-engine");
@@ -146,8 +160,8 @@ export async function PUT(
     }
 
     // Update the battle in the database
-    const db = getDb();
-    db.prepare("UPDATE battles SET rounds_json = ? WHERE id = ?").run(
+    await dbRun(
+      "UPDATE battles SET rounds_json = ? WHERE id = ?",
       JSON.stringify(battle.rounds),
       battleId
     );
@@ -158,7 +172,8 @@ export async function PUT(
 
     if (allRoundsPlayed && battle.status !== "completed") {
       const completed = await completeBattle(battleId);
-      return NextResponse.json(completed);
+      const synced = await syncBattleOnChainSettlement(battleId);
+      return NextResponse.json(synced ?? completed);
     }
 
     return NextResponse.json(battle);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import { getStripe, TIER_PRICES, getShardLimit, getMessageCap } from "@/lib/stripe";
 import crypto from "crypto";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
   const mismatch = ensureAddressMatch(auth.address, userId, "userId");
   if (mismatch) return mismatch;
 
-  const db = getDb();
-  const row = db
-    .prepare("SELECT * FROM subscriptions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1")
-    .get(userId) as Record<string, unknown> | undefined;
+  const row = await dbGet<Record<string, unknown>>(
+    "SELECT * FROM subscriptions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1",
+    userId
+  );
 
   if (!row) {
     return NextResponse.json({
@@ -46,9 +46,10 @@ export async function GET(request: NextRequest) {
   const monthStart = getMonthStart();
   let effectiveMessageCount = messageCount;
   if (lastReset < monthStart) {
-    db.prepare(
-      "UPDATE subscriptions SET message_count = 0, last_message_reset = ? WHERE user_id = ?"
-    ).run(monthStart, userId);
+    await dbRun(
+      "UPDATE subscriptions SET message_count = 0, last_message_reset = ? WHERE user_id = ?",
+      monthStart, userId
+    );
     effectiveMessageCount = 0;
   }
 
@@ -97,10 +98,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing Stripe customer
-    const db = getDb();
-    const existing = db
-      .prepare("SELECT stripe_customer_id FROM subscriptions WHERE user_id = ? AND stripe_customer_id IS NOT NULL LIMIT 1")
-      .get(userId) as { stripe_customer_id: string } | undefined;
+    const existing = await dbGet<{ stripe_customer_id: string }>(
+      "SELECT stripe_customer_id FROM subscriptions WHERE user_id = ? AND stripe_customer_id IS NOT NULL LIMIT 1",
+      userId
+    );
 
     let customerId = existing?.stripe_customer_id;
 

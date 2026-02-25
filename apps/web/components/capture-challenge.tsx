@@ -178,20 +178,21 @@ export function CaptureDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border-siphon-teal/35 bg-[#071123]/95">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+              className="h-9 w-9 flex items-center justify-center text-lg border"
               style={{
                 backgroundColor: color + "20",
                 color: color,
                 boxShadow: `0 0 15px ${color}40`,
+                borderColor: `${color}80`,
               }}
             >
               {["◈", "◇", "▣", "✦", "⬡", "⚖", "⛨", "◐"][shard.type] ?? "◈"}
             </div>
-            <span>Wild {shard.name}</span>
+            <span className="pixel-title text-[10px]">Wild {shard.name}</span>
           </DialogTitle>
           <DialogDescription>
             {shard.species} &middot; {typeName} Shard
@@ -200,30 +201,33 @@ export function CaptureDialog({
 
         <div className="space-y-4">
           {phase === "loading" && (
-            <div className="text-center py-8">
-              <div className="animate-pulse text-siphon-teal">
+            <div className="text-center py-8 reveal-up">
+              <div className="animate-pulse text-siphon-teal pixel-title text-[10px]">
                 Generating challenge...
               </div>
             </div>
           )}
 
           {phase === "challenge" && challenge && (
-            <>
+            <div className="reveal-up space-y-3">
               <div className="flex items-center justify-between">
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="uppercase tracking-wide">
                   {challenge.type.replace("_", " ")}
                 </Badge>
                 <span
-                  className={`text-sm font-mono ${
-                    timeLeft <= 10 ? "text-red-400" : "text-ghost"
+                  className={`text-sm font-mono px-2 py-1 border ${
+                    timeLeft <= 10
+                      ? "text-red-300 border-red-400/60 bg-red-950/20 animate-[danger-blink_1s_ease-in-out_infinite]"
+                      : "text-ghost border-siphon-teal/20 bg-abyss/60"
                   }`}
                 >
                   {timeLeft}s
                 </span>
               </div>
 
-              <div className="bg-abyss/80 rounded-lg p-4 border border-siphon-teal/10">
-                <p className="text-sm text-foam whitespace-pre-line">
+              <div className="pixel-panel p-4">
+                <div className="h-0.5 w-full mb-3 shimmer-line opacity-60" />
+                <p className="text-foam whitespace-pre-line">
                   {challenge.prompt}
                 </p>
               </div>
@@ -240,17 +244,17 @@ export function CaptureDialog({
                   Submit
                 </Button>
               </div>
-            </>
+            </div>
           )}
 
           {phase === "submitting" && (
-            <div className="text-center py-8">
-              <div className="animate-pulse text-siphon-teal">Evaluating...</div>
+            <div className="text-center py-8 reveal-up">
+              <div className="animate-pulse text-siphon-teal pixel-title text-[10px]">Evaluating...</div>
             </div>
           )}
 
           {phase === "registering" && (
-            <div className="text-center py-8">
+            <div className="text-center py-8 reveal-up">
               <div className="animate-pulse text-siphon-teal">
                 Registering on-chain...
               </div>
@@ -261,20 +265,21 @@ export function CaptureDialog({
           )}
 
           {phase === "success" && (
-            <div className="text-center py-4 space-y-3">
+            <div className="text-center py-4 space-y-3 reveal-up">
               <div
-                className="text-4xl mx-auto w-16 h-16 flex items-center justify-center rounded-full"
+                className="text-4xl mx-auto w-16 h-16 flex items-center justify-center border-2"
                 style={{
                   backgroundColor: color + "20",
                   boxShadow: `0 0 30px ${color}40`,
+                  borderColor: `${color}80`,
                 }}
               >
                 {["◈", "◇", "▣", "✦", "⬡", "⚖", "⛨", "◐"][shard.type] ?? "◈"}
               </div>
-              <h3 className="text-lg font-semibold text-siphon-teal">
+              <h3 className="pixel-title text-[11px] text-siphon-teal">
                 Shard Captured!
               </h3>
-              <p className="text-sm text-ghost">{feedback}</p>
+              <p className="text-ghost">{feedback}</p>
               <Button
                 onClick={() => {
                   onCaptured();
@@ -287,12 +292,12 @@ export function CaptureDialog({
           )}
 
           {phase === "failure" && (
-            <div className="text-center py-4 space-y-3">
+            <div className="text-center py-4 space-y-3 reveal-up">
               <div className="text-4xl">💨</div>
-              <h3 className="text-lg font-semibold text-ghost">
+              <h3 className="pixel-title text-[11px] text-ghost">
                 The Shard escaped...
               </h3>
-              <p className="text-sm text-ghost">{feedback}</p>
+              <p className="text-ghost">{feedback}</p>
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" onClick={onClose}>
                   Give Up

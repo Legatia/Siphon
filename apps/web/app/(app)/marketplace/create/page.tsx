@@ -83,17 +83,17 @@ function CosmeticCreatorForm() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foam">Create Cosmetic</h1>
-        <p className="text-ghost text-sm mt-1">
+        <h1 className="pixel-title text-[14px] text-foam">Create Cosmetic</h1>
+        <p className="text-ghost mt-2">
           Design and sell cosmetics on the marketplace.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Form */}
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-2 border-siphon-teal/30 bg-[#071123]/90 reveal-up">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-base pixel-title text-[10px]">
               <Paintbrush className="h-4 w-4 text-siphon-teal" />
               Cosmetic Details
             </CardTitle>
@@ -152,7 +152,7 @@ function CosmeticCreatorForm() {
                   placeholder="A shimmering aura that pulses with teal energy..."
                   rows={3}
                   required
-                  className="flex w-full rounded-lg border border-siphon-teal/20 bg-abyss px-3 py-2 text-sm text-foam placeholder:text-ghost/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-siphon-teal/30 focus-visible:border-siphon-teal/50 transition-colors resize-none"
+                  className="flex w-full border border-siphon-teal/20 bg-abyss px-3 py-2 text-sm text-foam placeholder:text-ghost/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-siphon-teal/30 focus-visible:border-siphon-teal/50 transition-colors resize-none"
                 />
               </div>
 
@@ -196,9 +196,9 @@ function CosmeticCreatorForm() {
         </Card>
 
         {/* Live preview */}
-        <Card>
+        <Card className="border-siphon-teal/30 bg-[#071123]/90 reveal-up" style={{ animationDelay: "120ms" }}>
           <CardHeader>
-            <CardTitle className="text-base">Preview</CardTitle>
+            <CardTitle className="text-base pixel-title text-[10px]">Preview</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <CosmeticPreview

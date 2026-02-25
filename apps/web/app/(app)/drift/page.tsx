@@ -7,8 +7,9 @@ import { DriftMap } from "@/components/drift-map";
 import { CaptureDialog } from "@/components/capture-challenge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { RefreshCw, Compass } from "lucide-react";
+import { RefreshCw, Compass, Target } from "lucide-react";
 import { updateOnboardingProgress } from "@/lib/game-feedback";
+import Link from "next/link";
 
 export default function DriftPage() {
   const { address } = useAccount();
@@ -51,8 +52,8 @@ export default function DriftPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foam">The Drift</h1>
-          <p className="text-ghost text-sm mt-1">
+          <h1 className="pixel-title text-[14px] text-foam">The Drift</h1>
+          <p className="mt-2 text-ghost">
             Wild Shards are drifting through the digital deep. Click one to
             begin capture.
           </p>
@@ -63,20 +64,43 @@ export default function DriftPage() {
         </Button>
       </div>
 
-      <DriftMap shards={wildShards} onShardClick={handleShardClick} />
+      <div className="reveal-up" style={{ animationDelay: "70ms" }}>
+        <DriftMap shards={wildShards} onShardClick={handleShardClick} />
+      </div>
 
       {!address && (
-        <Card className="p-4 text-center border-siphon-teal/20">
+        <Card className="border-siphon-teal/25 bg-[#071123]/85 p-4 text-center reveal-up" style={{ animationDelay: "120ms" }}>
           <Compass className="h-8 w-8 text-siphon-teal/30 mx-auto mb-2" />
-          <p className="text-ghost text-sm">
+          <p className="text-ghost">
             Connect your wallet to capture wild Shards.
           </p>
         </Card>
       )}
 
-      <div className="text-xs text-ghost text-center">
-        {wildShards.length} wild Shards detected in range
+      <div className="pixel-panel px-4 py-2 text-center reveal-up float-gentle" style={{ animationDelay: "150ms" }}>
+        <span className="text-xs uppercase tracking-wider text-ghost">
+          {wildShards.length} wild shards detected in range
+        </span>
       </div>
+
+      {address && (
+        <Card className="border-siphon-teal/25 bg-[#071123]/85 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-siphon-teal">Operator Route</p>
+              <p className="text-ghost mt-1">
+                After capture, train your shard and move to a live bounty for real payout.
+              </p>
+            </div>
+            <Link href="/bounties">
+              <Button size="sm">
+                <Target className="h-4 w-4 mr-2" />
+                Live Bounties
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       <CaptureDialog
         shard={selectedShard}

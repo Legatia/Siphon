@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll } from "@/lib/db";
 import { getActiveSeason } from "@/lib/seasons";
 
 export const dynamic = "force-dynamic";
@@ -7,25 +7,23 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(100, Math.max(10, Number(searchParams.get("limit") ?? "50")));
-  const season = getActiveSeason();
-  const db = getDb();
+  const season = await getActiveSeason();
 
-  const rows = db
-    .prepare(
-      `SELECT owner_id, wins, losses, draws, points, elo_delta
-       FROM season_stats
-       WHERE season_id = ?
-       ORDER BY points DESC, wins DESC, elo_delta DESC
-       LIMIT ?`
-    )
-    .all(season.id, limit) as {
-      owner_id: string;
-      wins: number;
-      losses: number;
-      draws: number;
-      points: number;
-      elo_delta: number;
-    }[];
+  const rows = await dbAll<{
+    owner_id: string;
+    wins: number;
+    losses: number;
+    draws: number;
+    points: number;
+    elo_delta: number;
+  }>(
+    `SELECT owner_id, wins, losses, draws, points, elo_delta
+     FROM season_stats
+     WHERE season_id = ?
+     ORDER BY points DESC, wins DESC, elo_delta DESC
+     LIMIT ?`,
+    season.id, limit
+  );
 
   return NextResponse.json({
     season,
@@ -40,4 +38,3 @@ export async function GET(request: NextRequest) {
     })),
   });
 }
-

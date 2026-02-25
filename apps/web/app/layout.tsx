@@ -15,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen">
+      <body className="min-h-screen pixel-scanlines pixel-vignette">
         <Providers>
           {children}
           <Toaster
@@ -23,9 +23,10 @@ export default function RootLayout({
             position="bottom-right"
             toastOptions={{
               style: {
-                background: "hsl(230 25% 12%)",
-                border: "1px solid hsl(165 100% 42% / 0.2)",
-                color: "hsl(200 30% 90%)",
+                background: "rgba(8, 16, 29, 0.95)",
+                border: "2px solid rgba(106, 245, 214, 0.45)",
+                color: "rgba(213, 244, 255, 0.95)",
+                borderRadius: "0",
               },
             }}
           />

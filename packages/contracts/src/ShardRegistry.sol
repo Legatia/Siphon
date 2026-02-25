@@ -125,7 +125,8 @@ contract ShardRegistry {
         emit LockerApproved(msg.sender, locker);
     }
 
-    /// @notice Revoke a locker's approval. Cannot revoke while any shard is actively locked by it.
+    /// @notice Revoke a locker's approval for future locks.
+    /// Existing locks are unaffected and can still be unlocked/seized by the active locker.
     function revokeLock(address locker) external {
         approvedLockers[msg.sender][locker] = false;
         emit LockerRevoked(msg.sender, locker);

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (mismatch) return mismatch;
 
     // Fetch both shards
-    const shardA = getShardById(shardIdA);
+    const shardA = await getShardById(shardIdA);
     if (!shardA) {
       return NextResponse.json(
         { error: `Shard A not found: ${shardIdA}` },
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shardB = getShardById(shardIdB);
+    const shardB = await getShardById(shardIdB);
     if (!shardB) {
       return NextResponse.json(
         { error: `Shard B not found: ${shardIdB}` },
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fusion requires Keeper tier or higher
-    const sub = getUserSubscription(ownerId);
+    const sub = await getUserSubscription(ownerId);
     if (!tierMeetsRequirement(sub.tier, "keeper")) {
       return NextResponse.json(
         { error: "Fusion requires Keeper tier or higher" },
@@ -70,26 +70,28 @@ export async function POST(request: NextRequest) {
     // Perform the fusion
     const fusedShard = performFusion(shardA, shardB);
 
-    const db = getDb();
+    const row = shardToRow(fusedShard);
+    const client = await getDb();
 
-    // Use a transaction for atomicity: insert new shard and consume parents
-    const fusionTransaction = db.transaction(() => {
-      // Insert the new fused shard
-      const row = shardToRow(fusedShard);
-      db.prepare(`
-        INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating)
-        VALUES (@id, @genome_hash, @type, @species, @name, @level, @xp, @owner_id, @is_wild, @avatar_json, @specialization, @personality, @stats_json, @created_at, @last_interaction, @decay_factor, @last_decay_check, @fused_from_json, @cosmetic_slots_json, @token_id, @elo_rating)
-      `).run(row);
-
-      // Mark both parent shards as consumed (remove ownership, no longer wild)
-      const consumeStmt = db.prepare(
-        "UPDATE shards SET owner_id = NULL, is_wild = 0 WHERE id = ?"
-      );
-      consumeStmt.run(shardA.id);
-      consumeStmt.run(shardB.id);
-    });
-
-    fusionTransaction();
+    // Use a batch for atomicity: insert new shard and consume parents
+    await client.batch(
+      [
+        {
+          sql: `INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating)
+                VALUES (:id, :genome_hash, :type, :species, :name, :level, :xp, :owner_id, :is_wild, :avatar_json, :specialization, :personality, :stats_json, :created_at, :last_interaction, :decay_factor, :last_decay_check, :fused_from_json, :cosmetic_slots_json, :token_id, :elo_rating)`,
+          args: row as any,
+        },
+        {
+          sql: "UPDATE shards SET owner_id = NULL, is_wild = 0 WHERE id = ?",
+          args: [shardA.id],
+        },
+        {
+          sql: "UPDATE shards SET owner_id = NULL, is_wild = 0 WHERE id = ?",
+          args: [shardB.id],
+        },
+      ],
+      "write"
+    );
 
     return NextResponse.json(fusedShard);
   } catch (error) {

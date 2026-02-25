@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe, TIER_PRICES } from "@/lib/stripe";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import crypto from "crypto";
 import Stripe from "stripe";
 
@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const db = getDb();
   const now = Date.now();
 
   try {
@@ -69,30 +68,24 @@ export async function POST(request: NextRequest) {
         }
 
         // Upsert subscription record
-        const existing = db
-          .prepare("SELECT id FROM subscriptions WHERE user_id = ?")
-          .get(userId) as { id: string } | undefined;
+        const existing = await dbGet<{ id: string }>(
+          "SELECT id FROM subscriptions WHERE user_id = ?",
+          userId
+        );
 
         if (existing) {
-          db.prepare(
+          await dbRun(
             `UPDATE subscriptions
              SET tier = ?, stripe_customer_id = ?, stripe_subscription_id = ?,
                  current_period_end = ?, updated_at = ?
-             WHERE user_id = ?`
-          ).run(tier, customerId, subscriptionId, periodEnd, now, userId);
+             WHERE user_id = ?`,
+            tier, customerId ?? null, subscriptionId ?? null, periodEnd, now, userId
+          );
         } else {
-          db.prepare(
+          await dbRun(
             `INSERT INTO subscriptions (id, user_id, tier, stripe_customer_id, stripe_subscription_id, current_period_end, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-          ).run(
-            crypto.randomUUID(),
-            userId,
-            tier,
-            customerId,
-            subscriptionId,
-            periodEnd,
-            now,
-            now
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            crypto.randomUUID(), userId, tier, customerId ?? null, subscriptionId ?? null, periodEnd, now, now
           );
         }
         break;
@@ -117,11 +110,12 @@ export async function POST(request: NextRequest) {
 
         const periodEnd = subscription.current_period_end * 1000;
 
-        db.prepare(
+        await dbRun(
           `UPDATE subscriptions
            SET tier = ?, current_period_end = ?, updated_at = ?
-           WHERE stripe_customer_id = ?`
-        ).run(tier, periodEnd, now, customerId);
+           WHERE stripe_customer_id = ?`,
+          tier, periodEnd, now, customerId ?? null
+        );
         break;
       }
 
@@ -132,12 +126,13 @@ export async function POST(request: NextRequest) {
             ? subscription.customer
             : subscription.customer?.id;
 
-        db.prepare(
+        await dbRun(
           `UPDATE subscriptions
            SET tier = 'free_trainer', stripe_subscription_id = NULL,
                current_period_end = NULL, updated_at = ?
-           WHERE stripe_customer_id = ?`
-        ).run(now, customerId);
+           WHERE stripe_customer_id = ?`,
+          now, customerId ?? null
+        );
         break;
       }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import crypto from "crypto";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
@@ -21,12 +21,11 @@ export async function POST(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
     if (mismatch) return mismatch;
 
-    const db = getDb();
-
     // Verify cosmetic exists
-    const cosmetic = db
-      .prepare("SELECT id, name FROM cosmetics WHERE id = ?")
-      .get(cosmeticId) as { id: string; name: string } | undefined;
+    const cosmetic = await dbGet<{ id: string; name: string }>(
+      "SELECT id, name FROM cosmetics WHERE id = ?",
+      cosmeticId
+    );
 
     if (!cosmetic) {
       return NextResponse.json(
@@ -36,11 +35,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already owned
-    const existing = db
-      .prepare(
-        "SELECT id FROM cosmetic_inventory WHERE cosmetic_id = ? AND owner_id = ?"
-      )
-      .get(cosmeticId, ownerId) as { id: string } | undefined;
+    const existing = await dbGet<{ id: string }>(
+      "SELECT id FROM cosmetic_inventory WHERE cosmetic_id = ? AND owner_id = ?",
+      cosmeticId, ownerId
+    );
 
     if (existing) {
       return NextResponse.json(
@@ -52,10 +50,11 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     const now = Date.now();
 
-    db.prepare(
+    await dbRun(
       `INSERT INTO cosmetic_inventory (id, cosmetic_id, owner_id, purchased_at)
-       VALUES (?, ?, ?, ?)`
-    ).run(id, cosmeticId, ownerId, now);
+       VALUES (?, ?, ?, ?)`,
+      id, cosmeticId, ownerId, now
+    );
 
     return NextResponse.json({
       success: true,

@@ -118,11 +118,11 @@ export function DriftMap({ shards, onShardClick }: DriftMapProps) {
 
       // Name label on hover
       if (isHovered) {
-        ctx.font = "12px Inter, sans-serif";
+        ctx.font = "12px 'VT323', monospace";
         ctx.fillStyle = "#ffffff";
         ctx.textAlign = "center";
         ctx.fillText(shard.name, x, y + baseRadius + 16);
-        ctx.font = "10px Inter, sans-serif";
+        ctx.font = "10px 'Press Start 2P', monospace";
         ctx.fillStyle = color;
         ctx.fillText(typeName, x, y + baseRadius + 30);
       }
@@ -186,14 +186,14 @@ export function DriftMap({ shards, onShardClick }: DriftMapProps) {
   };
 
   return (
-    <div className="relative w-full h-[500px] rounded-xl overflow-hidden glow-border bg-abyss">
+    <div className="relative w-full h-[500px] overflow-hidden glow-border bg-abyss">
       <canvas
         ref={canvasRef}
         className="w-full h-full"
         onMouseMove={handleMouseMove}
         onClick={handleClick}
       />
-      <div className="absolute bottom-4 left-4 flex gap-3 text-xs text-ghost">
+      <div className="absolute bottom-4 left-4 flex flex-wrap gap-3 border border-siphon-teal/20 bg-[#050b17]/75 px-3 py-2 text-xs text-ghost">
         {(["Oracle", "Cipher", "Scribe", "Muse", "Architect", "Advocate", "Sentinel", "Mirror"] as const).map((type) => (
           <div key={type} className="flex items-center gap-1">
             <div

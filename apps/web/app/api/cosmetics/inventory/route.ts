@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll } from "@/lib/db";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
@@ -13,27 +13,25 @@ export async function GET(request: NextRequest) {
   const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
   if (mismatch) return mismatch;
 
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT
-         ci.id AS inventory_id,
-         ci.purchased_at,
-         c.id,
-         c.name,
-         c.slot,
-         c.rarity,
-         c.description,
-         c.preview_data,
-         c.price,
-         c.creator_id,
-         c.created_at
-       FROM cosmetic_inventory ci
-       JOIN cosmetics c ON ci.cosmetic_id = c.id
-       WHERE ci.owner_id = ?
-       ORDER BY ci.purchased_at DESC`
-    )
-    .all(ownerId) as Record<string, unknown>[];
+  const rows = await dbAll<Record<string, unknown>>(
+    `SELECT
+       ci.id AS inventory_id,
+       ci.purchased_at,
+       c.id,
+       c.name,
+       c.slot,
+       c.rarity,
+       c.description,
+       c.preview_data,
+       c.price,
+       c.creator_id,
+       c.created_at
+     FROM cosmetic_inventory ci
+     JOIN cosmetics c ON ci.cosmetic_id = c.id
+     WHERE ci.owner_id = ?
+     ORDER BY ci.purchased_at DESC`,
+    ownerId
+  );
 
   const inventory = rows.map((row) => ({
     inventoryId: row.inventory_id,

@@ -129,6 +129,16 @@ contract SwarmRegistryTest is Test {
         swarmRegistry.createSwarm(swarmId1, shards);
     }
 
+    function test_RevertCreateDuplicateShard() public {
+        bytes32[] memory shards = new bytes32[](2);
+        shards[0] = shard1;
+        shards[1] = shard1;
+
+        vm.prank(alice);
+        vm.expectRevert("Duplicate shard");
+        swarmRegistry.createSwarm(swarmId1, shards);
+    }
+
     function test_RevertDissolveNotOwner() public {
         bytes32[] memory shards = new bytes32[](2);
         shards[0] = shard1;

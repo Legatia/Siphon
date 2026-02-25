@@ -30,6 +30,8 @@ import {
   SHARD_VALUATION_ADDRESS,
 } from "@/lib/contracts";
 import { toast } from "sonner";
+import { useSmartWrite } from "@/hooks/use-smart-write";
+import { LENDING_ENABLED } from "@/lib/features";
 
 /** Retry a fetch call up to 3 times with exponential backoff (for DB updates after on-chain tx). */
 async function retryFetch(url: string, init: RequestInit, retries = 3): Promise<Response> {
@@ -326,6 +328,7 @@ function CreateLoanForm({
   address: string;
   onCreated: () => void;
 }) {
+  const { smartWrite, isSmartWallet } = useSmartWrite();
   const [shardId, setShardId] = useState("");
   const [principal, setPrincipal] = useState("0.05");
   const [interestBps, setInterestBps] = useState("500");
@@ -438,43 +441,70 @@ function CreateLoanForm({
         collateralValue = principalWei;
       }
 
-      // 2. Approve the LoanVault as a locker on ShardRegistry (skip if already approved)
+      // 2. Generate loan id
+      const loanId = crypto.randomUUID();
+      const loanIdBytes = idToBytes32(loanId);
+
+      // 3. Approve the LoanVault as a locker on ShardRegistry (skip if already approved)
       const isApproved = await publicClient.readContract({
         address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
         abi: SHARD_REGISTRY_LOCK_ABI,
         functionName: "approvedLockers",
         args: [address as `0x${string}`, LOAN_VAULT_ADDRESS as `0x${string}`],
       });
-      if (!isApproved) {
-        const approveHash = await walletClient.writeContract({
+      let createHash: string;
+      if (!isApproved && isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+            abi: SHARD_REGISTRY_LOCK_ABI,
+            functionName: "approveLock",
+            args: [LOAN_VAULT_ADDRESS as `0x${string}`],
+          },
+          {
+            address: LOAN_VAULT_ADDRESS as `0x${string}`,
+            abi: LOAN_VAULT_ABI,
+            functionName: "createLoan",
+            args: [
+              loanIdBytes,
+              shardIdBytes,
+              principalWei,
+              BigInt(parseInt(interestBps)),
+              BigInt(durationSec),
+            ],
+          },
+        ]);
+        if (!batchId) throw new Error("Batch transaction unavailable");
+        createHash = String(batchId);
+      } else {
+        if (!isApproved) {
+          const approveHash = await walletClient.writeContract({
+            account: address as `0x${string}`,
+            address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
+            abi: SHARD_REGISTRY_LOCK_ABI,
+            functionName: "approveLock",
+            args: [LOAN_VAULT_ADDRESS as `0x${string}`],
+          });
+          await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        }
+
+        // 4. Create loan on-chain
+        const txHash = await walletClient.writeContract({
           account: address as `0x${string}`,
-          address: SHARD_REGISTRY_ADDRESS as `0x${string}`,
-          abi: SHARD_REGISTRY_LOCK_ABI,
-          functionName: "approveLock",
-          args: [LOAN_VAULT_ADDRESS as `0x${string}`],
+          address: LOAN_VAULT_ADDRESS as `0x${string}`,
+          abi: LOAN_VAULT_ABI,
+          functionName: "createLoan",
+          args: [
+            loanIdBytes,
+            shardIdBytes,
+            principalWei,
+            BigInt(parseInt(interestBps)),
+            BigInt(durationSec),
+          ],
         });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        createHash = txHash;
       }
-
-      // 3. Generate a loanId (bytes32 from random UUID)
-      const loanId = crypto.randomUUID();
-      const loanIdBytes = idToBytes32(loanId);
-
-      // 4. Create loan on-chain
-      const createHash = await walletClient.writeContract({
-        account: address as `0x${string}`,
-        address: LOAN_VAULT_ADDRESS as `0x${string}`,
-        abi: LOAN_VAULT_ABI,
-        functionName: "createLoan",
-        args: [
-          loanIdBytes,
-          shardIdBytes,
-          principalWei,
-          BigInt(parseInt(interestBps)),
-          BigInt(durationSec),
-        ],
-      });
-      await publicClient.waitForTransactionReceipt({ hash: createHash });
 
       // 5. Record in SQLite (retry on failure — on-chain tx already succeeded)
       await retryFetch("/api/loans", {
@@ -627,6 +657,8 @@ export default function LoansPage() {
   const [tab, setTab] = useState("browse");
 
   function refresh() {
+    if (!LENDING_ENABLED) return;
+
     fetch("/api/loans?view=listings")
       .then((r) => r.json())
       .then(setListings)
@@ -651,8 +683,25 @@ export default function LoansPage() {
   }
 
   useEffect(() => {
+    if (!LENDING_ENABLED) return;
     refresh();
   }, [address]);
+
+  if (!LENDING_ENABLED) {
+    return (
+      <div className="max-w-3xl mx-auto py-12">
+        <Card className="p-8 bg-midnight/60 border-siphon-teal/10">
+          <div className="flex items-center gap-3 mb-3">
+            <Landmark className="h-6 w-6 text-siphon-teal" />
+            <h1 className="text-xl font-semibold text-foam">Lending Coming Soon</h1>
+          </div>
+          <p className="text-ghost">
+            Lending is intentionally disabled for the current core protocol release and will return in a later milestone.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-2 sm:py-8">

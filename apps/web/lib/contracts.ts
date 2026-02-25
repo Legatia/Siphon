@@ -178,6 +178,13 @@ export const BATTLE_SETTLEMENT_ABI = [
   },
   {
     type: "function",
+    name: "finalizeSettlement",
+    inputs: [{ name: "battleId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "dispute",
     inputs: [{ name: "battleId", type: "bytes32" }],
     outputs: [],
@@ -190,6 +197,13 @@ export const BATTLE_SETTLEMENT_ABI = [
       { name: "battleId", type: "bytes32" },
       { name: "winner", type: "address" },
     ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "cancelUnjoined",
+    inputs: [{ name: "battleId", type: "bytes32" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -208,6 +222,7 @@ export const BATTLE_SETTLEMENT_ABI = [
           { name: "state", type: "uint8" },
           { name: "winner", type: "address" },
           { name: "createdAt", type: "uint256" },
+          { name: "settledAt", type: "uint256" },
         ],
       },
     ],
@@ -579,6 +594,11 @@ export const LOAN_VAULT_ABI = [
       { name: "lender", type: "address", indexed: true },
       { name: "shardId", type: "bytes32", indexed: true },
     ],
+  },
+  {
+    type: "event",
+    name: "LoanCancelled",
+    inputs: [{ name: "loanId", type: "bytes32", indexed: true }],
   },
 ] as const;
 

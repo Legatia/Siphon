@@ -27,6 +27,7 @@ import {
   publicClient,
 } from "@/lib/contracts";
 import { toast } from "sonner";
+import { useSmartWrite } from "@/hooks/use-smart-write";
 
 const TIER_ICONS: Record<string, React.ReactNode> = {
   free_trainer: <Zap className="h-6 w-6" />,
@@ -69,6 +70,7 @@ interface SubscriptionData {
 
 export default function SubscribePage() {
   const { address } = useAccount();
+  const { smartWrite, isSmartWallet } = useSmartWrite();
   const [subscription, setSubscription] = useState<SubscriptionData>({
     tier: "free_trainer",
   });
@@ -158,29 +160,50 @@ export default function SubscribePage() {
         6
       ); // USDC has 6 decimals
 
-      // Step 1: Approve USDC transfer
-      const approveHash = await walletClient.writeContract({
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: USDC_ABI,
-        functionName: "approve",
-        args: [SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`, amount],
-        account: address,
-      });
+      let stakeHash: string;
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: USDC_ADDRESS as `0x${string}`,
+            abi: USDC_ABI,
+            functionName: "approve",
+            args: [SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`, amount],
+          },
+          {
+            address: SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`,
+            abi: SUBSCRIPTION_STAKING_ABI,
+            functionName: "stake",
+            args: [amount],
+          },
+        ]);
+        if (!batchId) throw new Error("Batch transaction unavailable");
+        stakeHash = String(batchId);
+      } else {
+        // Step 1: Approve USDC transfer
+        const approveHash = await walletClient.writeContract({
+          address: USDC_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "approve",
+          args: [SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`, amount],
+          account: address,
+        });
 
-      // Wait for approval to confirm
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        // Wait for approval to confirm
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-      // Step 2: Stake USDC
-      const stakeHash = await walletClient.writeContract({
-        address: SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`,
-        abi: SUBSCRIPTION_STAKING_ABI,
-        functionName: "stake",
-        args: [amount],
-        account: address,
-      });
+        // Step 2: Stake USDC
+        const txHash = await walletClient.writeContract({
+          address: SUBSCRIPTION_STAKING_ADDRESS as `0x${string}`,
+          abi: SUBSCRIPTION_STAKING_ABI,
+          functionName: "stake",
+          args: [amount],
+          account: address,
+        });
 
-      // Wait for stake to confirm
-      await publicClient.waitForTransactionReceipt({ hash: stakeHash });
+        // Wait for stake to confirm
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        stakeHash = txHash;
+      }
 
       // Step 3: Record stake with API (which verifies on-chain)
       const res = await fetch("/api/subscriptions/stake", {

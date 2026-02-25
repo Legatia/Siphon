@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount } from "wagmi";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { BattleStatus, PROTOCOL_CONSTANTS, generateBattlePrompt } from "@siphon/core";
 import type { Battle, Shard, BattleRound } from "@siphon/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   Minus,
   Clock3,
   Share2,
+  Target,
 } from "lucide-react";
 import { playSfx, triggerCelebration, updateOnboardingProgress } from "@/lib/game-feedback";
 import { toast } from "sonner";
@@ -229,6 +231,7 @@ export default function BattleLivePage() {
     battle.winnerId &&
     !didWin;
   const isDraw = isCompleted && !battle.winnerId;
+  const payoutFinalized = battle.stakeAmount <= 0 || !!battle.finalizationTxHash;
 
   useEffect(() => {
     if (!isParticipant) return;
@@ -288,7 +291,7 @@ export default function BattleLivePage() {
         defenderShard={defenderShard}
       />
       {spectateMode && (
-        <Card className="border-siphon-teal/20 bg-siphon-teal/5">
+        <Card className="border-siphon-teal/30 bg-siphon-teal/8 reveal-up" style={{ animationDelay: "80ms" }}>
           <CardContent className="p-3 text-sm text-siphon-teal">
             Spectating live battle. Submission controls are disabled.
           </CardContent>
@@ -304,7 +307,8 @@ export default function BattleLivePage() {
               : didLose
               ? "border-red-500/30 bg-red-500/5"
               : "border-ghost/30 bg-ghost/5"
-          }`}
+          } reveal-up`}
+          style={{ animationDelay: "120ms" }}
         >
           <CardContent className="p-6 text-center">
             <div className="flex items-center justify-center gap-3 mb-2">
@@ -346,7 +350,9 @@ export default function BattleLivePage() {
               {battle.stakeAmount > 0 && (
                 <span className="text-ghost">
                   {" | "}
-                  {didWin ? (
+                  {!payoutFinalized ? (
+                    <span className="text-amber-400">Payout pending finalization</span>
+                  ) : didWin ? (
                     <span className="text-ember">
                       +{battle.stakeAmount} ETH won
                     </span>
@@ -361,20 +367,28 @@ export default function BattleLivePage() {
               )}
             </div>
             <div className="mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const text = encodeURIComponent(
-                    `Battle result: ${didWin ? "Victory" : didLose ? "Defeat" : "Draw"} in ${battle.mode}. ELO change ${myEloDelta > 0 ? "+" : ""}${myEloDelta}.`
-                  );
-                  const url = encodeURIComponent(window.location.href);
-                  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-                }}
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                Share Result
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const text = encodeURIComponent(
+                      `Battle result: ${didWin ? "Victory" : didLose ? "Defeat" : "Draw"} in ${battle.mode}. ELO change ${myEloDelta > 0 ? "+" : ""}${myEloDelta}.`
+                    );
+                    const url = encodeURIComponent(window.location.href);
+                    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Result
+                </Button>
+                <Link href="/bounties">
+                  <Button size="sm">
+                    <Target className="h-4 w-4 mr-2" />
+                    Convert Skill to Bounty
+                  </Button>
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -382,28 +396,34 @@ export default function BattleLivePage() {
 
       {/* Response Input for current round */}
       {!isCompleted && isParticipant && activeRound && (
-        <Card className="border-siphon-teal/20">
+        <Card className="border-siphon-teal/30 bg-[#071123]/85 reveal-up" style={{ animationDelay: "80ms" }}>
           <CardHeader>
-            <CardTitle className="text-base">
+            <CardTitle className="pixel-title text-[11px] text-foam">
               Round {activeRound.roundNumber} - Your Response
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {timeLeft !== null && (
-              <div className="flex items-center justify-between rounded-md border border-siphon-teal/20 bg-abyss/60 px-3 py-2">
+              <div
+                className={`flex items-center justify-between border px-3 py-2 ${
+                  timeLeft <= 10
+                    ? "border-red-400/55 bg-red-950/20 animate-[danger-blink_1s_ease-in-out_infinite]"
+                    : "border-siphon-teal/25 bg-abyss/70"
+                }`}
+              >
                 <span className="text-xs text-ghost uppercase tracking-wider">Turn timer</span>
-                <span className={`text-sm font-mono ${timeLeft <= 10 ? "text-red-400" : "text-siphon-teal"} flex items-center gap-1`}>
+                <span className={`text-sm font-mono ${timeLeft <= 10 ? "text-red-300" : "text-siphon-teal"} flex items-center gap-1`}>
                   <Clock3 className="h-3.5 w-3.5" />
                   {timeLeft}s
                 </span>
               </div>
             )}
             {/* Show the prompt */}
-            <div className="rounded-lg bg-abyss/60 border border-siphon-teal/5 p-4">
+            <div className="pixel-panel p-4">
               <p className="text-xs font-medium text-siphon-teal mb-1.5 uppercase tracking-wider">
                 Prompt
               </p>
-              <p className="text-sm text-foam/90 leading-relaxed">
+              <p className="text-foam/90 leading-relaxed">
                 {activeRound.prompt}
               </p>
             </div>
@@ -417,7 +437,7 @@ export default function BattleLivePage() {
                 }
                 placeholder="Enter your response..."
                 rows={6}
-                className="flex w-full rounded-lg border border-siphon-teal/20 bg-abyss px-4 py-3 text-sm text-foam placeholder:text-ghost/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-siphon-teal/30 focus-visible:border-siphon-teal/50 transition-colors resize-none"
+                className="flex w-full border border-siphon-teal/25 bg-[#061020] px-4 py-3 text-sm text-foam placeholder:text-ghost/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-siphon-teal/30 focus-visible:border-siphon-teal/50 transition-colors resize-none"
               />
               <div className="flex items-center justify-between mt-2">
                 <p className="text-[10px] text-ghost/40">
@@ -447,9 +467,9 @@ export default function BattleLivePage() {
         !activeRound &&
         battle.rounds.length > 0 &&
         !allRoundsPlayed && (
-          <Card className="p-6 text-center border-ghost/10">
+          <Card className="p-6 text-center border-ghost/15 bg-[#070f1f]/80">
             <Loader2 className="h-6 w-6 text-ghost animate-spin mx-auto mb-2" />
-            <p className="text-ghost text-sm">
+            <p className="text-ghost">
               Waiting for opponent to submit their response...
             </p>
           </Card>
@@ -476,7 +496,7 @@ export default function BattleLivePage() {
               </>
             )}
           </Button>
-          <p className="text-xs text-ghost/50 mt-2">
+          <p className="mt-2 text-xs text-ghost/50">
             All rounds complete. Settle to determine the winner and update ELO
             ratings.
           </p>
@@ -486,7 +506,7 @@ export default function BattleLivePage() {
       {/* Round History */}
       {battle.rounds.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foam">Rounds</h2>
+          <h2 className="pixel-title text-[11px] text-foam">Round Logs</h2>
           {battle.rounds.map((round) => (
             <BattleRoundDisplay
               key={round.roundNumber}
@@ -510,8 +530,8 @@ export default function BattleLivePage() {
 
       {/* No rounds yet message */}
       {!isCompleted && battle.rounds.length === 0 && isParticipant && (
-        <Card className="p-8 text-center border-ghost/10">
-          <p className="text-ghost text-sm mb-3">
+        <Card className="border-ghost/15 bg-[#070f1f]/80 p-8 text-center">
+          <p className="mb-3 text-ghost">
             The battle has started but no rounds have been initiated yet.
           </p>
           <p className="text-ghost/50 text-xs">

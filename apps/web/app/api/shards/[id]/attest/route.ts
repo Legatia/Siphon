@@ -26,7 +26,7 @@ export async function POST(
 
     const { id: shardId } = await params;
 
-    const shard = getShardById(shardId);
+    const shard = await getShardById(shardId);
     if (!shard) {
       return NextResponse.json({ error: "Shard not found" }, { status: 404 });
     }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createLoan,
+  findLoanTxUsage,
+  getLoan,
   getLoans,
   getLoanListings,
   getActiveLoans,
@@ -8,10 +10,18 @@ import {
 import { LoanState } from "@siphon/core";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 import { verifyCreateLoanTx } from "@/lib/loan-onchain";
+import { isLendingEnabled } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  if (!isLendingEnabled()) {
+    return NextResponse.json(
+      { error: "Lending is disabled for this deployment" },
+      { status: 404 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const borrower = searchParams.get("borrower");
   const lender = searchParams.get("lender");
@@ -20,16 +30,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (view === "listings") {
-      return NextResponse.json(getLoanListings());
+      return NextResponse.json(await getLoanListings());
     }
     if (view === "active") {
-      return NextResponse.json(getActiveLoans());
+      return NextResponse.json(await getActiveLoans());
     }
 
     const state =
       stateParam !== null ? (parseInt(stateParam) as LoanState) : undefined;
 
-    const loans = getLoans({
+    const loans = await getLoans({
       borrower: borrower ?? undefined,
       lender: lender ?? undefined,
       state,
@@ -44,6 +54,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isLendingEnabled()) {
+    return NextResponse.json(
+      { error: "Lending is disabled for this deployment" },
+      { status: 404 }
+    );
+  }
+
   try {
     const auth = await requireSessionAddress();
     if ("error" in auth) return auth.error;
@@ -75,6 +92,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const txUsage = await findLoanTxUsage(txHash);
+    if (txUsage) {
+      if (txUsage.loanId === id && txUsage.column === "tx_hash") {
+        const existing = await getLoan(id);
+        if (existing) return NextResponse.json(existing, { status: 200 });
+      }
+      return NextResponse.json(
+        { error: `txHash already used by loan sync (${txUsage.loanId}:${txUsage.column})` },
+        { status: 409 }
+      );
+    }
+
     const verified = await verifyCreateLoanTx({
       txHash,
       expectedFrom: auth.address,
@@ -91,7 +120,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const loan = createLoan({
+    const loan = await createLoan({
       id,
       shardId,
       borrower,

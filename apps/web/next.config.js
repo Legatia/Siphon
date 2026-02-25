@@ -6,7 +6,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   webpack: (config) => {
-    config.externals.push("better-sqlite3");
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
     Object.assign(config.resolve.alias, {

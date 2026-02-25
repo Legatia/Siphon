@@ -14,10 +14,10 @@ export async function GET(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
     if (mismatch) return mismatch;
 
-    const shards = getOwnedShards(ownerId);
+    const shards = await getOwnedShards(ownerId);
     return NextResponse.json(shards);
   }
 
-  const shards = getAllShards();
+  const shards = await getAllShards();
   return NextResponse.json(shards);
 }

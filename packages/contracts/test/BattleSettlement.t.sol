@@ -96,27 +96,45 @@ contract BattleSettlementTest is Test {
         vm.prank(bob);
         settlement.joinBattle{value: 1 ether}(battleId);
 
-        uint256 balBefore = alice.balance;
         settlement.settle(battleId, alice);
-        uint256 balAfter = alice.balance;
-
-        assertEq(balAfter - balBefore, 2 ether);
 
         BattleSettlement.BattleRecord memory b = settlement.getBattle(battleId);
         assertEq(uint(b.state), uint(BattleSettlement.BattleState.Settled));
         assertEq(b.winner, alice);
     }
 
-    function test_SettleDraw() public {
+    function test_FinalizeSettlementWinner() public {
         vm.prank(alice);
         settlement.createBattle{value: 1 ether}(battleId, bob);
 
         vm.prank(bob);
         settlement.joinBattle{value: 1 ether}(battleId);
 
+        settlement.settle(battleId, alice);
+        vm.warp(block.timestamp + settlement.DISPUTE_WINDOW() + 1);
+
+        uint256 balBefore = alice.balance;
+        settlement.finalizeSettlement(battleId);
+        uint256 balAfter = alice.balance;
+
+        assertEq(balAfter - balBefore, 2 ether);
+        BattleSettlement.BattleRecord memory b = settlement.getBattle(battleId);
+        assertEq(uint(b.state), uint(BattleSettlement.BattleState.Resolved));
+    }
+
+    function test_FinalizeSettlementDraw() public {
+        vm.prank(alice);
+        settlement.createBattle{value: 1 ether}(battleId, bob);
+
+        vm.prank(bob);
+        settlement.joinBattle{value: 1 ether}(battleId);
+
+        settlement.settle(battleId, address(0));
+        vm.warp(block.timestamp + settlement.DISPUTE_WINDOW() + 1);
+
         uint256 aliceBal = alice.balance;
         uint256 bobBal = bob.balance;
-        settlement.settle(battleId, address(0));
+        settlement.finalizeSettlement(battleId);
 
         assertEq(alice.balance - aliceBal, 1 ether);
         assertEq(bob.balance - bobBal, 1 ether);
@@ -162,10 +180,39 @@ contract BattleSettlementTest is Test {
         vm.prank(bob);
         settlement.dispute(battleId);
 
+        uint256 bobBal = bob.balance;
         settlement.resolveDispute(battleId, bob);
 
         BattleSettlement.BattleRecord memory b = settlement.getBattle(battleId);
         assertEq(uint(b.state), uint(BattleSettlement.BattleState.Resolved));
         assertEq(b.winner, bob);
+        assertEq(bob.balance - bobBal, 2 ether);
+    }
+
+    function test_CancelUnjoinedAfterTimeout() public {
+        vm.prank(alice);
+        settlement.createBattle{value: 1 ether}(battleId, bob);
+
+        vm.warp(block.timestamp + settlement.JOIN_TIMEOUT() + 1);
+        uint256 aliceBal = alice.balance;
+        vm.prank(alice);
+        settlement.cancelUnjoined(battleId);
+
+        BattleSettlement.BattleRecord memory b = settlement.getBattle(battleId);
+        assertEq(uint(b.state), uint(BattleSettlement.BattleState.Cancelled));
+        assertEq(alice.balance - aliceBal, 1 ether);
+    }
+
+    function test_RevertDisputeAfterWindow() public {
+        vm.prank(alice);
+        settlement.createBattle{value: 1 ether}(battleId, bob);
+        vm.prank(bob);
+        settlement.joinBattle{value: 1 ether}(battleId);
+        settlement.settle(battleId, alice);
+
+        vm.warp(block.timestamp + settlement.DISPUTE_WINDOW() + 1);
+        vm.prank(bob);
+        vm.expectRevert("Dispute window closed");
+        settlement.dispute(battleId);
     }
 }

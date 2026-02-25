@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll } from "@/lib/db";
 import { LoanState } from "@siphon/core";
 import { publicClient, LOAN_VAULT_ABI, LOAN_VAULT_ADDRESS, idToBytes32 } from "@/lib/contracts";
+import { isLendingEnabled } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +13,23 @@ export const dynamic = "force-dynamic";
  * Note: liquidate() is permissioned to the lender, so this cron only reports.
  */
 export async function GET() {
+  if (!isLendingEnabled()) {
+    return NextResponse.json({
+      liquidatable: [],
+      checked: 0,
+      disabled: true,
+      reason: "Lending is disabled for this deployment",
+    });
+  }
+
   try {
-    const db = getDb();
-    const fundedLoans = db
-      .prepare("SELECT * FROM loans WHERE state = ?")
-      .all(LoanState.Funded) as Array<{
-        id: string;
-        borrower: string;
-        lender: string;
-        shard_id: string;
-        principal: number;
-      }>;
+    const fundedLoans = await dbAll<{
+      id: string;
+      borrower: string;
+      lender: string;
+      shard_id: string;
+      principal: number;
+    }>("SELECT * FROM loans WHERE state = ?", LoanState.Funded);
 
     if (fundedLoans.length === 0) {
       return NextResponse.json({ liquidatable: [], checked: 0 });

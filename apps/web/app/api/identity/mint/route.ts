@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbRun } from "@/lib/db";
 import { getShardById } from "@/lib/shard-engine";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 import { ERC8004_IDENTITY_CONFIGURED } from "@/lib/contracts";
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
     if (mismatch) return mismatch;
 
-    const shard = getShardById(shardId);
+    const shard = await getShardById(shardId);
     if (!shard) {
       return NextResponse.json(
         { error: "Shard not found" },
@@ -90,13 +90,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDb();
-    db.prepare("UPDATE shards SET token_id = ? WHERE id = ?").run(
-      tokenId,
-      shardId
-    );
+    await dbRun("UPDATE shards SET token_id = ? WHERE id = ?", tokenId, shardId);
 
-    const updated = getShardById(shardId);
+    const updated = await getShardById(shardId);
 
     return NextResponse.json({ tokenId, txHash, shard: updated });
   } catch (err) {

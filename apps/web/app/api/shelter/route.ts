@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (mismatch) return mismatch;
   }
 
-  let shards = ownerId ? getOwnedShards(ownerId) : getAllShards();
+  let shards = ownerId ? await getOwnedShards(ownerId) : await getAllShards();
 
   if (typeFilter !== null && typeFilter !== "") {
     const typeNum = parseInt(typeFilter);

@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getDb, dbGet, dbAll, dbRun } from "@/lib/db";
 import { getShardById } from "@/lib/shard-engine";
 import { generateBattleJudgment, generateShardResponse } from "@/lib/llm";
 import {
@@ -25,6 +25,16 @@ import {
 } from "@/lib/contracts";
 import { recordSeasonResult } from "@/lib/seasons";
 import { evaluateAchievements } from "@/lib/achievements";
+
+const BATTLE_DISPUTE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const BATTLE_STATE_SETTLED = 3;
+const BATTLE_STATE_DISPUTED = 4;
+const BATTLE_STATE_RESOLVED = 5;
+
+const chainPublicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
 
 /**
  * Settle a staked battle on-chain via the BattleSettlement contract.
@@ -54,6 +64,63 @@ async function settleOnChain(
   return hash;
 }
 
+async function finalizeOnChain(
+  battleIdHex: `0x${string}`
+): Promise<`0x${string}`> {
+  const arbiterKey = process.env.ARBITER_PRIVATE_KEY;
+  if (!arbiterKey) throw new Error("ARBITER_PRIVATE_KEY not configured");
+
+  const account = privateKeyToAccount(arbiterKey as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http(),
+  });
+
+  return walletClient.writeContract({
+    address: BATTLE_SETTLEMENT_ADDRESS as `0x${string}`,
+    abi: BATTLE_SETTLEMENT_ABI,
+    functionName: "finalizeSettlement",
+    args: [battleIdHex],
+  });
+}
+
+async function getOnChainBattleState(
+  battleIdHex: `0x${string}`
+): Promise<number | null> {
+  try {
+    const battle: any = await chainPublicClient.readContract({
+      address: BATTLE_SETTLEMENT_ADDRESS as `0x${string}`,
+      abi: BATTLE_SETTLEMENT_ABI,
+      functionName: "getBattle",
+      args: [battleIdHex],
+    });
+
+    if (typeof battle?.state === "bigint") {
+      return Number(battle.state);
+    }
+    if (Array.isArray(battle) && typeof battle[4] === "bigint") {
+      return Number(battle[4]);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function winnerAddressForBattle(battle: Battle): `0x${string}` {
+  if (!battle.winnerId) {
+    return "0x0000000000000000000000000000000000000000";
+  }
+  if (battle.winnerId === battle.challenger.shardId) {
+    return battle.challenger.keeperId as `0x${string}`;
+  }
+  if (battle.winnerId === battle.defender.shardId) {
+    return battle.defender.keeperId as `0x${string}`;
+  }
+  return "0x0000000000000000000000000000000000000000";
+}
+
 function battleToRow(battle: Battle) {
   return {
     id: battle.id,
@@ -66,6 +133,7 @@ function battleToRow(battle: Battle) {
     stake_amount: battle.stakeAmount,
     escrow_tx_hash: battle.escrowTxHash,
     settlement_tx_hash: battle.settlementTxHash,
+    finalization_tx_hash: battle.finalizationTxHash ?? null,
     judge_model: battle.judgeModel,
     created_at: battle.createdAt,
     completed_at: battle.completedAt,
@@ -84,24 +152,23 @@ function rowToBattle(row: any): Battle {
     stakeAmount: row.stake_amount,
     escrowTxHash: row.escrow_tx_hash,
     settlementTxHash: row.settlement_tx_hash,
+    finalizationTxHash: row.finalization_tx_hash ?? null,
     judgeModel: row.judge_model,
     createdAt: row.created_at,
     completedAt: row.completed_at,
   };
 }
 
-export function createBattle(
+export async function createBattle(
   challengerShardId: string,
   defenderShardId: string,
   mode: BattleMode,
   stakeAmount: number,
   challengerOwnerId: string,
   defenderOwnerId: string
-): Battle {
-  const db = getDb();
-
-  const challengerShard = getShardById(challengerShardId);
-  const defenderShard = getShardById(defenderShardId);
+): Promise<Battle> {
+  const challengerShard = await getShardById(challengerShardId);
+  const defenderShard = await getShardById(defenderShardId);
 
   if (!challengerShard) throw new Error("Challenger shard not found");
   if (!defenderShard) throw new Error("Defender shard not found");
@@ -127,16 +194,34 @@ export function createBattle(
     stakeAmount,
     escrowTxHash: null,
     settlementTxHash: null,
+    finalizationTxHash: null,
     judgeModel: "gpt-4o-mini",
     createdAt: Date.now(),
     completedAt: null,
   };
 
   const row = battleToRow(battle);
-  db.prepare(`
-    INSERT INTO battles (id, mode, status, challenger_json, defender_json, rounds_json, winner_id, stake_amount, escrow_tx_hash, settlement_tx_hash, judge_model, created_at, completed_at)
-    VALUES (@id, @mode, @status, @challenger_json, @defender_json, @rounds_json, @winner_id, @stake_amount, @escrow_tx_hash, @settlement_tx_hash, @judge_model, @created_at, @completed_at)
-  `).run(row);
+  const c = await getDb();
+  await c.execute({
+    sql: `INSERT INTO battles (id, mode, status, challenger_json, defender_json, rounds_json, winner_id, stake_amount, escrow_tx_hash, settlement_tx_hash, finalization_tx_hash, judge_model, created_at, completed_at)
+    VALUES (:id, :mode, :status, :challenger_json, :defender_json, :rounds_json, :winner_id, :stake_amount, :escrow_tx_hash, :settlement_tx_hash, :finalization_tx_hash, :judge_model, :created_at, :completed_at)`,
+    args: {
+      id: row.id,
+      mode: row.mode,
+      status: row.status,
+      challenger_json: row.challenger_json,
+      defender_json: row.defender_json,
+      rounds_json: row.rounds_json,
+      winner_id: row.winner_id,
+      stake_amount: row.stake_amount,
+      escrow_tx_hash: row.escrow_tx_hash,
+      settlement_tx_hash: row.settlement_tx_hash,
+      finalization_tx_hash: row.finalization_tx_hash,
+      judge_model: row.judge_model,
+      created_at: row.created_at,
+      completed_at: row.completed_at,
+    },
+  });
 
   return battle;
 }
@@ -145,16 +230,15 @@ export async function executeBattleRound(
   battleId: string,
   round: number
 ): Promise<BattleRound> {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM battles WHERE id = ?").get(battleId);
+  const row = await dbGet("SELECT * FROM battles WHERE id = ?", battleId);
   if (!row) throw new Error("Battle not found");
 
   const battle = rowToBattle(row);
   const prompt = generateBattlePrompt(battle.mode, round);
 
   // Load shard data for AI response generation
-  const challengerShard = getShardById(battle.challenger.shardId);
-  const defenderShard = getShardById(battle.defender.shardId);
+  const challengerShard = await getShardById(battle.challenger.shardId);
+  const defenderShard = await getShardById(battle.defender.shardId);
 
   // Generate AI responses for both shards
   let challengerResponse = "";
@@ -176,7 +260,8 @@ export async function executeBattleRound(
   };
 
   battle.rounds.push(battleRound);
-  db.prepare("UPDATE battles SET rounds_json = ? WHERE id = ?").run(
+  await dbRun(
+    "UPDATE battles SET rounds_json = ? WHERE id = ?",
     JSON.stringify(battle.rounds),
     battleId
   );
@@ -201,8 +286,7 @@ export async function judgeBattleRound(
 }
 
 export async function completeBattle(battleId: string): Promise<Battle> {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM battles WHERE id = ?").get(battleId);
+  const row = await dbGet("SELECT * FROM battles WHERE id = ?", battleId);
   if (!row) throw new Error("Battle not found");
 
   const battle = rowToBattle(row);
@@ -257,11 +341,13 @@ export async function completeBattle(battleId: string): Promise<Battle> {
   }
 
   // Update shard elo ratings in the database
-  db.prepare("UPDATE shards SET elo_rating = elo_rating + ? WHERE id = ?").run(
+  await dbRun(
+    "UPDATE shards SET elo_rating = elo_rating + ? WHERE id = ?",
     battle.challenger.eloDelta,
     battle.challenger.shardId
   );
-  db.prepare("UPDATE shards SET elo_rating = elo_rating + ? WHERE id = ?").run(
+  await dbRun(
+    "UPDATE shards SET elo_rating = elo_rating + ? WHERE id = ?",
     battle.defender.eloDelta,
     battle.defender.shardId
   );
@@ -271,7 +357,7 @@ export async function completeBattle(battleId: string): Promise<Battle> {
   const challengerWon = winnerId === battle.challenger.shardId;
   const defenderWon = winnerId === battle.defender.shardId;
 
-  recordSeasonResult({
+  await recordSeasonResult({
     ownerId: challengerOwner,
     points: isDraw ? 1 : challengerWon ? 3 : 0,
     win: challengerWon,
@@ -279,7 +365,7 @@ export async function completeBattle(battleId: string): Promise<Battle> {
     draw: isDraw,
     eloDelta: battle.challenger.eloDelta,
   });
-  recordSeasonResult({
+  await recordSeasonResult({
     ownerId: defenderOwner,
     points: isDraw ? 1 : defenderWon ? 3 : 0,
     win: defenderWon,
@@ -287,80 +373,180 @@ export async function completeBattle(battleId: string): Promise<Battle> {
     draw: isDraw,
     eloDelta: battle.defender.eloDelta,
   });
-  evaluateAchievements(challengerOwner);
-  evaluateAchievements(defenderOwner);
+  await evaluateAchievements(challengerOwner);
+  await evaluateAchievements(defenderOwner);
 
-  // Settle on-chain for staked battles
-  if (battle.stakeAmount > 0 && battle.escrowTxHash) {
+  // Trigger on-chain settlement for staked battles; payout finalization is synced separately.
+  if (battle.stakeAmount > 0 && battle.escrowTxHash && !battle.settlementTxHash) {
     try {
       const battleIdHex = idToBytes32(battle.id);
-      // Determine winner address: if draw, send address(0)
-      let winnerAddr: `0x${string}` = "0x0000000000000000000000000000000000000000";
-      if (winnerId === battle.challenger.shardId) {
-        winnerAddr = battle.challenger.keeperId as `0x${string}`;
-      } else if (winnerId === battle.defender.shardId) {
-        winnerAddr = battle.defender.keeperId as `0x${string}`;
-      }
-
-      const txHash = await settleOnChain(battleIdHex, winnerAddr);
+      const txHash = await settleOnChain(battleIdHex, winnerAddressForBattle(battle));
       battle.settlementTxHash = txHash;
     } catch (err) {
       console.error("On-chain settlement failed:", err);
-      // Continue with off-chain settlement — don't block the result
+      // Keep off-chain result; settlement can be retried by sync.
     }
   }
 
   // Update battle record
   const updatedRow = battleToRow(battle);
-  db.prepare(`
-    UPDATE battles
-    SET status = @status, challenger_json = @challenger_json, defender_json = @defender_json,
-        rounds_json = @rounds_json, winner_id = @winner_id, settlement_tx_hash = @settlement_tx_hash, completed_at = @completed_at
-    WHERE id = @id
-  `).run(updatedRow);
+  const c = await getDb();
+  await c.execute({
+    sql: `UPDATE battles
+    SET status = :status, challenger_json = :challenger_json, defender_json = :defender_json,
+        rounds_json = :rounds_json, winner_id = :winner_id, settlement_tx_hash = :settlement_tx_hash,
+        finalization_tx_hash = :finalization_tx_hash, completed_at = :completed_at
+    WHERE id = :id`,
+    args: {
+      id: updatedRow.id,
+      status: updatedRow.status,
+      challenger_json: updatedRow.challenger_json,
+      defender_json: updatedRow.defender_json,
+      rounds_json: updatedRow.rounds_json,
+      winner_id: updatedRow.winner_id,
+      settlement_tx_hash: updatedRow.settlement_tx_hash,
+      finalization_tx_hash: updatedRow.finalization_tx_hash,
+      completed_at: updatedRow.completed_at,
+    },
+  });
 
   return battle;
 }
 
-export function getBattleById(battleId: string): Battle | null {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM battles WHERE id = ?").get(battleId);
+export async function syncBattleOnChainSettlement(battleId: string): Promise<Battle | null> {
+  const battle = await getBattleById(battleId);
+  if (!battle) return null;
+  if (battle.status !== BattleStatus.Completed) return battle;
+  if (!(battle.stakeAmount > 0 && battle.escrowTxHash)) return battle;
+  if (!process.env.ARBITER_PRIVATE_KEY) return battle;
+
+  let changed = false;
+  const battleIdHex = idToBytes32(battle.id);
+
+  if (!battle.settlementTxHash) {
+    try {
+      battle.settlementTxHash = await settleOnChain(
+        battleIdHex,
+        winnerAddressForBattle(battle)
+      );
+      changed = true;
+    } catch (err) {
+      console.error("Failed to sync settle() on-chain:", err);
+    }
+  }
+
+  const canFinalize =
+    battle.completedAt !== null &&
+    Date.now() >= battle.completedAt + BATTLE_DISPUTE_WINDOW_MS &&
+    !battle.finalizationTxHash;
+
+  if (canFinalize) {
+    const onChainState = await getOnChainBattleState(battleIdHex);
+    if (onChainState === BATTLE_STATE_SETTLED) {
+      try {
+        battle.finalizationTxHash = await finalizeOnChain(battleIdHex);
+        changed = true;
+      } catch (err) {
+        console.error("Failed to finalize settlement on-chain:", err);
+      }
+    } else if (onChainState === BATTLE_STATE_DISPUTED) {
+      // Disputed battles require explicit arbiter resolveDispute action.
+      console.warn(`Battle ${battle.id} is disputed on-chain and requires resolveDispute.`);
+    } else if (onChainState === BATTLE_STATE_RESOLVED) {
+      // Already resolved by another caller.
+      battle.finalizationTxHash = battle.finalizationTxHash ?? "resolved_onchain";
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    const bRow = battleToRow(battle);
+    const c = await getDb();
+    await c.execute({
+      sql: `UPDATE battles
+      SET settlement_tx_hash = :settlement_tx_hash, finalization_tx_hash = :finalization_tx_hash
+      WHERE id = :id`,
+      args: {
+        id: bRow.id,
+        settlement_tx_hash: bRow.settlement_tx_hash,
+        finalization_tx_hash: bRow.finalization_tx_hash,
+      },
+    });
+  }
+
+  return battle;
+}
+
+export async function syncOutstandingBattleSettlements(
+  limit = 25
+): Promise<{ checked: number; updated: number }> {
+  const rows = await dbAll<{
+    id: string;
+    settlement_tx_hash: string | null;
+    finalization_tx_hash: string | null;
+  }>(
+    `SELECT id, settlement_tx_hash, finalization_tx_hash
+     FROM battles
+     WHERE status = 'completed'
+       AND stake_amount > 0
+       AND escrow_tx_hash IS NOT NULL
+       AND (settlement_tx_hash IS NULL OR finalization_tx_hash IS NULL)
+     ORDER BY completed_at ASC
+     LIMIT ?`,
+    limit
+  );
+
+  let updated = 0;
+  for (const row of rows) {
+    const synced = await syncBattleOnChainSettlement(row.id);
+    if (!synced) continue;
+    const settlementChanged = (synced.settlementTxHash ?? null) !== row.settlement_tx_hash;
+    const finalizationChanged =
+      (synced.finalizationTxHash ?? null) !== (row.finalization_tx_hash ?? null);
+    if (settlementChanged || finalizationChanged) {
+      updated += 1;
+    }
+  }
+
+  return { checked: rows.length, updated };
+}
+
+export async function getBattleById(battleId: string): Promise<Battle | null> {
+  const row = await dbGet("SELECT * FROM battles WHERE id = ?", battleId);
   return row ? rowToBattle(row) : null;
 }
 
-export function getBattlesForOwner(ownerId: string): Battle[] {
-  const db = getDb();
+export async function getBattlesForOwner(ownerId: string): Promise<Battle[]> {
   // Sanitize LIKE special chars and validate address format
   const sanitized = ownerId.toLowerCase().replace(/[%_\\]/g, "");
   if (!/^0x[a-f0-9]{40}$/.test(sanitized)) return [];
 
   const pattern = `%"keeperId":"${sanitized}"%`;
-  const rows = db
-    .prepare(
-      `SELECT * FROM battles
-       WHERE challenger_json LIKE ? OR defender_json LIKE ?
-       ORDER BY created_at DESC`
-    )
-    .all(pattern, pattern);
+  const rows = await dbAll(
+    `SELECT * FROM battles
+     WHERE challenger_json LIKE ? OR defender_json LIKE ?
+     ORDER BY created_at DESC`,
+    pattern,
+    pattern
+  );
   return rows.map(rowToBattle);
 }
 
-export function findMatch(entry: MatchmakingEntry): MatchmakingEntry | null {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT * FROM matchmaking_queue
-       WHERE mode = ? AND owner_id != ?
-       ORDER BY joined_at ASC`
-    )
-    .all(entry.mode, entry.ownerId) as any[];
+export async function findMatch(entry: MatchmakingEntry): Promise<MatchmakingEntry | null> {
+  const rows = await dbAll<any>(
+    `SELECT * FROM matchmaking_queue
+     WHERE mode = ? AND owner_id != ?
+     ORDER BY joined_at ASC`,
+    entry.mode,
+    entry.ownerId
+  );
 
   const now = Date.now();
   const myWait = Math.max(0, now - entry.joinedAt);
   const myRange = Math.min(1200, 200 + Math.floor(myWait / 30_000) * 100);
 
   const candidates = rows
-    .map((row) => ({
+    .map((row: any) => ({
       id: row.id,
       shardId: row.shard_id,
       ownerId: row.owner_id,
@@ -371,8 +557,8 @@ export function findMatch(entry: MatchmakingEntry): MatchmakingEntry | null {
       eloDiff: Math.abs(row.elo_rating - entry.eloRating),
       oppRange: Math.min(1200, 200 + Math.floor(Math.max(0, now - row.joined_at) / 30_000) * 100),
     }))
-    .filter((row) => row.eloDiff <= myRange && row.eloDiff <= row.oppRange)
-    .sort((a, b) => a.eloDiff - b.eloDiff);
+    .filter((row: any) => row.eloDiff <= myRange && row.eloDiff <= row.oppRange)
+    .sort((a: any, b: any) => a.eloDiff - b.eloDiff);
 
   if (!candidates.length) return null;
   const winner = candidates[0]!;
@@ -387,14 +573,13 @@ export function findMatch(entry: MatchmakingEntry): MatchmakingEntry | null {
   };
 }
 
-export function joinQueue(
+export async function joinQueue(
   shardId: string,
   ownerId: string,
   mode: BattleMode,
   eloRating: number,
   stakeAmount: number
-): MatchmakingEntry {
-  const db = getDb();
+): Promise<MatchmakingEntry> {
   const entry: MatchmakingEntry = {
     id: crypto.randomUUID(),
     shardId,
@@ -405,28 +590,30 @@ export function joinQueue(
     joinedAt: Date.now(),
   };
 
-  db.prepare(`
-    INSERT INTO matchmaking_queue (id, shard_id, owner_id, mode, elo_rating, stake_amount, joined_at)
-    VALUES (@id, @shard_id, @owner_id, @mode, @elo_rating, @stake_amount, @joined_at)
-  `).run({
-    id: entry.id,
-    shard_id: entry.shardId,
-    owner_id: entry.ownerId,
-    mode: entry.mode,
-    elo_rating: entry.eloRating,
-    stake_amount: entry.stakeAmount,
-    joined_at: entry.joinedAt,
+  const c = await getDb();
+  await c.execute({
+    sql: `INSERT INTO matchmaking_queue (id, shard_id, owner_id, mode, elo_rating, stake_amount, joined_at)
+    VALUES (:id, :shard_id, :owner_id, :mode, :elo_rating, :stake_amount, :joined_at)`,
+    args: {
+      id: entry.id,
+      shard_id: entry.shardId,
+      owner_id: entry.ownerId,
+      mode: entry.mode,
+      elo_rating: entry.eloRating,
+      stake_amount: entry.stakeAmount,
+      joined_at: entry.joinedAt,
+    },
   });
 
   // Try to find a match immediately
-  const match = findMatch(entry);
+  const match = await findMatch(entry);
   if (match) {
     // Remove both entries from queue
-    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(match.id);
-    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(entry.id);
+    await dbRun("DELETE FROM matchmaking_queue WHERE id = ?", match.id);
+    await dbRun("DELETE FROM matchmaking_queue WHERE id = ?", entry.id);
 
     // Create the battle
-    createBattle(
+    await createBattle(
       entry.shardId,
       match.shardId,
       mode,
@@ -439,26 +626,26 @@ export function joinQueue(
   return entry;
 }
 
-export function leaveQueue(entryId: string): void {
-  const db = getDb();
-  db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(entryId);
+export async function leaveQueue(entryId: string): Promise<void> {
+  await dbRun("DELETE FROM matchmaking_queue WHERE id = ?", entryId);
 }
 
-export function leaveQueueForOwner(entryId: string, ownerId: string): boolean {
-  const db = getDb();
-  const result = db
-    .prepare("DELETE FROM matchmaking_queue WHERE id = ? AND owner_id = ?")
-    .run(entryId, ownerId);
-  return result.changes > 0;
+export async function leaveQueueForOwner(entryId: string, ownerId: string): Promise<boolean> {
+  const result = await dbRun(
+    "DELETE FROM matchmaking_queue WHERE id = ? AND owner_id = ?",
+    entryId,
+    ownerId
+  );
+  return (result.rowsAffected ?? 0) > 0;
 }
 
-export function getQueueEntries(ownerId: string): MatchmakingEntry[] {
-  const db = getDb();
+export async function getQueueEntries(ownerId: string): Promise<MatchmakingEntry[]> {
   const timeoutAt = Date.now() - 10 * 60 * 1000;
-  db.prepare("DELETE FROM matchmaking_queue WHERE joined_at < ?").run(timeoutAt);
-  const rows = db
-    .prepare("SELECT * FROM matchmaking_queue WHERE owner_id = ?")
-    .all(ownerId);
+  await dbRun("DELETE FROM matchmaking_queue WHERE joined_at < ?", timeoutAt);
+  const rows = await dbAll<any>(
+    "SELECT * FROM matchmaking_queue WHERE owner_id = ?",
+    ownerId
+  );
 
   return rows.map((row: any) => ({
     id: row.id,
@@ -472,11 +659,10 @@ export function getQueueEntries(ownerId: string): MatchmakingEntry[] {
   }));
 }
 
-export function attemptQueueMatches(mode?: BattleMode): number {
-  const db = getDb();
+export async function attemptQueueMatches(mode?: BattleMode): Promise<number> {
   const rows = mode
-    ? (db.prepare("SELECT * FROM matchmaking_queue WHERE mode = ? ORDER BY joined_at ASC").all(mode) as any[])
-    : (db.prepare("SELECT * FROM matchmaking_queue ORDER BY joined_at ASC").all() as any[]);
+    ? await dbAll<any>("SELECT * FROM matchmaking_queue WHERE mode = ? ORDER BY joined_at ASC", mode)
+    : await dbAll<any>("SELECT * FROM matchmaking_queue ORDER BY joined_at ASC");
 
   let created = 0;
   for (const row of rows) {
@@ -489,16 +675,16 @@ export function attemptQueueMatches(mode?: BattleMode): number {
       stakeAmount: row.stake_amount,
       joinedAt: row.joined_at,
     };
-    const match = findMatch(entry);
+    const match = await findMatch(entry);
     if (!match) continue;
 
-    const stillExists = db.prepare("SELECT id FROM matchmaking_queue WHERE id = ?").get(entry.id);
-    const opponentExists = db.prepare("SELECT id FROM matchmaking_queue WHERE id = ?").get(match.id);
+    const stillExists = await dbGet("SELECT id FROM matchmaking_queue WHERE id = ?", entry.id);
+    const opponentExists = await dbGet("SELECT id FROM matchmaking_queue WHERE id = ?", match.id);
     if (!stillExists || !opponentExists) continue;
 
-    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(match.id);
-    db.prepare("DELETE FROM matchmaking_queue WHERE id = ?").run(entry.id);
-    createBattle(
+    await dbRun("DELETE FROM matchmaking_queue WHERE id = ?", match.id);
+    await dbRun("DELETE FROM matchmaking_queue WHERE id = ?", entry.id);
+    await createBattle(
       entry.shardId,
       match.shardId,
       entry.mode,

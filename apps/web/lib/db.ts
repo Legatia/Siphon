@@ -1,37 +1,81 @@
-import Database from "better-sqlite3";
-import path from "path";
+import { createClient, type Client, type InValue, type ResultSet } from "@libsql/client";
 
-const DB_PATH = resolveDbPath();
+// ---------------------------------------------------------------------------
+// Client singleton
+// ---------------------------------------------------------------------------
 
-function resolveDbPath(): string {
-  const explicit = process.env.SIPHON_DB_PATH;
-  if (explicit && explicit.trim()) {
-    return explicit.trim();
+let _client: Client | null = null;
+let _initialized = false;
+
+export async function getDb(): Promise<Client> {
+  if (!_client) {
+    const url = process.env.TURSO_DB_URL?.trim();
+    if (url) {
+      _client = createClient({
+        url,
+        authToken: process.env.TURSO_AUTH_TOKEN ?? undefined,
+      });
+    } else {
+      // Local dev fallback — same SQLite engine, no Turso account needed
+      _client = createClient({ url: "file:./siphon.db" });
+    }
   }
 
-  // Vercel/serverless filesystems are read-only except /tmp.
-  if (process.env.VERCEL) {
-    return "/tmp/siphon.db";
+  if (!_initialized) {
+    _initialized = true;
+    await _client.executeMultiple(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;`);
+    await initSchema(_client);
+    await migrateSchema(_client);
   }
 
-  return path.join(process.cwd(), "siphon.db");
+  return _client;
 }
 
-let db: Database.Database | null = null;
+// ---------------------------------------------------------------------------
+// Runtime info
+// ---------------------------------------------------------------------------
 
-export function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    initSchema(db);
-    migrateSchema(db);
-  }
-  return db;
+export function getDbRuntimeInfo(): { url: string; mode: "remote" | "local" } {
+  const url = process.env.TURSO_DB_URL?.trim();
+  return {
+    url: url || "file:./siphon.db",
+    mode: url ? "remote" : "local",
+  };
 }
 
-function initSchema(db: Database.Database) {
-  db.exec(`
+// ---------------------------------------------------------------------------
+// Convenience helpers
+// ---------------------------------------------------------------------------
+
+export async function dbRun(sql: string, ...args: InValue[]): Promise<ResultSet> {
+  const c = await getDb();
+  return c.execute({ sql, args });
+}
+
+export async function dbGet<T = Record<string, unknown>>(
+  sql: string,
+  ...args: InValue[]
+): Promise<T | undefined> {
+  const c = await getDb();
+  const rs = await c.execute({ sql, args });
+  return rs.rows[0] as T | undefined;
+}
+
+export async function dbAll<T = Record<string, unknown>>(
+  sql: string,
+  ...args: InValue[]
+): Promise<T[]> {
+  const c = await getDb();
+  const rs = await c.execute({ sql, args });
+  return rs.rows as T[];
+}
+
+// ---------------------------------------------------------------------------
+// Schema init
+// ---------------------------------------------------------------------------
+
+async function initSchema(client: Client) {
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS shards (
       id TEXT PRIMARY KEY,
       genome_hash TEXT NOT NULL,
@@ -75,54 +119,72 @@ function initSchema(db: Database.Database) {
   `);
 }
 
-function hasColumn(db: Database.Database, table: string, column: string): boolean {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  return cols.some((c) => c.name === column);
+// ---------------------------------------------------------------------------
+// Helpers for migrations
+// ---------------------------------------------------------------------------
+
+async function hasColumn(client: Client, table: string, column: string): Promise<boolean> {
+  const rs = await client.execute(`PRAGMA table_info(${table})`);
+  return rs.rows.some((c: any) => c.name === column);
 }
 
-function migrateSchema(db: Database.Database) {
+async function hasTable(client: Client, table: string): Promise<boolean> {
+  const rs = await client.execute({
+    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    args: [table],
+  });
+  return rs.rows.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Migrations
+// ---------------------------------------------------------------------------
+
+async function migrateSchema(client: Client) {
   // Migrate subscriptions table
-  if (!hasColumn(db, "subscriptions", "message_count")) {
-    db.exec(`ALTER TABLE subscriptions ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0`);
+  if (await hasTable(client, "subscriptions")) {
+    if (!(await hasColumn(client, "subscriptions", "message_count")))
+      await client.execute("ALTER TABLE subscriptions ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0");
+    if (!(await hasColumn(client, "subscriptions", "last_message_reset")))
+      await client.execute("ALTER TABLE subscriptions ADD COLUMN last_message_reset INTEGER NOT NULL DEFAULT 0");
+    if (!(await hasColumn(client, "subscriptions", "stake_amount")))
+      await client.execute("ALTER TABLE subscriptions ADD COLUMN stake_amount REAL NOT NULL DEFAULT 0");
+    if (!(await hasColumn(client, "subscriptions", "stake_tx_hash")))
+      await client.execute("ALTER TABLE subscriptions ADD COLUMN stake_tx_hash TEXT");
+    if (!(await hasColumn(client, "subscriptions", "hosting_type")))
+      await client.execute("ALTER TABLE subscriptions ADD COLUMN hosting_type TEXT NOT NULL DEFAULT 'none'");
   }
-  if (!hasColumn(db, "subscriptions", "last_message_reset")) {
-    db.exec(`ALTER TABLE subscriptions ADD COLUMN last_message_reset INTEGER NOT NULL DEFAULT 0`);
+
+  if (await hasTable(client, "loans")) {
+    if (!(await hasColumn(client, "loans", "cancel_tx_hash")))
+      await client.execute("ALTER TABLE loans ADD COLUMN cancel_tx_hash TEXT");
   }
-  if (!hasColumn(db, "subscriptions", "stake_amount")) {
-    db.exec(`ALTER TABLE subscriptions ADD COLUMN stake_amount REAL NOT NULL DEFAULT 0`);
-  }
-  if (!hasColumn(db, "subscriptions", "stake_tx_hash")) {
-    db.exec(`ALTER TABLE subscriptions ADD COLUMN stake_tx_hash TEXT`);
-  }
-  if (!hasColumn(db, "subscriptions", "hosting_type")) {
-    db.exec(`ALTER TABLE subscriptions ADD COLUMN hosting_type TEXT NOT NULL DEFAULT 'none'`);
-  }
+
   // Migrate old tier names
-  db.exec(`UPDATE subscriptions SET tier = 'free_trainer' WHERE tier = 'free'`);
-  db.exec(`UPDATE subscriptions SET tier = 'trainer_plus' WHERE tier = 'trainer'`);
+  await client.execute("UPDATE subscriptions SET tier = 'free_trainer' WHERE tier = 'free'");
+  await client.execute("UPDATE subscriptions SET tier = 'trainer_plus' WHERE tier = 'trainer'");
 
   // Add new columns to shards table with safe defaults
-  if (!hasColumn(db, "shards", "decay_factor")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN decay_factor REAL DEFAULT 1.0`);
-  }
-  if (!hasColumn(db, "shards", "last_decay_check")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN last_decay_check INTEGER DEFAULT 0`);
-  }
-  if (!hasColumn(db, "shards", "fused_from_json")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN fused_from_json TEXT`);
-  }
-  if (!hasColumn(db, "shards", "cosmetic_slots_json")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN cosmetic_slots_json TEXT DEFAULT '{"aura":null,"trail":null,"crown":null,"emblem":null}'`);
-  }
-  if (!hasColumn(db, "shards", "token_id")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN token_id TEXT`);
-  }
-  if (!hasColumn(db, "shards", "elo_rating")) {
-    db.exec(`ALTER TABLE shards ADD COLUMN elo_rating INTEGER DEFAULT 1200`);
+  if (!(await hasColumn(client, "shards", "decay_factor")))
+    await client.execute("ALTER TABLE shards ADD COLUMN decay_factor REAL DEFAULT 1.0");
+  if (!(await hasColumn(client, "shards", "last_decay_check")))
+    await client.execute("ALTER TABLE shards ADD COLUMN last_decay_check INTEGER DEFAULT 0");
+  if (!(await hasColumn(client, "shards", "fused_from_json")))
+    await client.execute("ALTER TABLE shards ADD COLUMN fused_from_json TEXT");
+  if (!(await hasColumn(client, "shards", "cosmetic_slots_json")))
+    await client.execute("ALTER TABLE shards ADD COLUMN cosmetic_slots_json TEXT DEFAULT '{\"aura\":null,\"trail\":null,\"crown\":null,\"emblem\":null}'");
+  if (!(await hasColumn(client, "shards", "token_id")))
+    await client.execute("ALTER TABLE shards ADD COLUMN token_id TEXT");
+  if (!(await hasColumn(client, "shards", "elo_rating")))
+    await client.execute("ALTER TABLE shards ADD COLUMN elo_rating INTEGER DEFAULT 1200");
+
+  if (await hasTable(client, "battles")) {
+    if (!(await hasColumn(client, "battles", "finalization_tx_hash")))
+      await client.execute("ALTER TABLE battles ADD COLUMN finalization_tx_hash TEXT");
   }
 
   // New tables
-  db.exec(`
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS battles (
       id TEXT PRIMARY KEY,
       mode TEXT NOT NULL,
@@ -134,6 +196,7 @@ function migrateSchema(db: Database.Database) {
       stake_amount REAL NOT NULL DEFAULT 0,
       escrow_tx_hash TEXT,
       settlement_tx_hash TEXT,
+      finalization_tx_hash TEXT,
       judge_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
       created_at INTEGER NOT NULL,
       completed_at INTEGER
@@ -230,7 +293,8 @@ function migrateSchema(db: Database.Database) {
       tx_hash TEXT,
       fund_tx_hash TEXT,
       repay_tx_hash TEXT,
-      liquidate_tx_hash TEXT
+      liquidate_tx_hash TEXT,
+      cancel_tx_hash TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_loans_borrower ON loans(borrower);
@@ -304,6 +368,26 @@ function migrateSchema(db: Database.Database) {
       meta_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS activation_events (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      source TEXT NOT NULL,
+      entity_id TEXT,
+      unique_key TEXT,
+      metadata_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS waitlist_subscribers (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'hero',
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_subscribers(email);
+
     CREATE INDEX IF NOT EXISTS idx_battles_status ON battles(status);
     CREATE INDEX IF NOT EXISTS idx_matchmaking_mode ON matchmaking_queue(mode);
     CREATE INDEX IF NOT EXISTS idx_cosmetic_inv_owner ON cosmetic_inventory(owner_id);
@@ -314,18 +398,24 @@ function migrateSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_capture_sessions_shard ON capture_sessions(shard_id);
     CREATE INDEX IF NOT EXISTS idx_marketplace_state ON marketplace_listings(state);
     CREATE INDEX IF NOT EXISTS idx_marketplace_seller ON marketplace_listings(seller);
+    CREATE INDEX IF NOT EXISTS idx_activation_events_owner ON activation_events(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_activation_events_type ON activation_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_activation_events_created ON activation_events(created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_activation_events_unique_key ON activation_events(unique_key);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_season_stats_unique ON season_stats(season_id, owner_id);
     CREATE INDEX IF NOT EXISTS idx_season_stats_points ON season_stats(season_id, points DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_achievements_unique ON achievements_unlocked(owner_id, achievement_key);
   `);
 
-  if (!hasColumn(db, "bounties", "execution_status")) {
-    db.exec(`ALTER TABLE bounties ADD COLUMN execution_status TEXT`);
-  }
-  if (!hasColumn(db, "bounties", "execution_result")) {
-    db.exec(`ALTER TABLE bounties ADD COLUMN execution_result TEXT`);
-  }
+  if (!(await hasColumn(client, "bounties", "execution_status")))
+    await client.execute("ALTER TABLE bounties ADD COLUMN execution_status TEXT");
+  if (!(await hasColumn(client, "bounties", "execution_result")))
+    await client.execute("ALTER TABLE bounties ADD COLUMN execution_result TEXT");
 }
+
+// ---------------------------------------------------------------------------
+// Row ↔ Shard transforms (pure data — stay sync)
+// ---------------------------------------------------------------------------
 
 export function shardToRow(shard: import("@siphon/core").Shard) {
   return {

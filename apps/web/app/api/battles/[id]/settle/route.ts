@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeBattle, getBattleById } from "@/lib/battle-engine";
+import { completeBattle, getBattleById, syncBattleOnChainSettlement } from "@/lib/battle-engine";
 import { requireSessionAddress } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function POST(
     const auth = await requireSessionAddress();
     if ("error" in auth) return auth.error;
 
-    const battle = getBattleById(id);
+    const battle = await getBattleById(id);
     if (!battle) {
       return NextResponse.json({ error: "Battle not found" }, { status: 404 });
     }
@@ -28,23 +28,23 @@ export async function POST(
       );
     }
 
-    if (battle.status === "completed") {
-      return NextResponse.json(battle);
-    }
-
-    // Check that there are rounds with responses to judge
-    const hasResponses = battle.rounds.some(
-      (r) => r.challengerResponse && r.defenderResponse
-    );
-    if (!hasResponses && battle.rounds.length === 0) {
-      return NextResponse.json(
-        { error: "No rounds have been played yet" },
-        { status: 400 }
+    let result = battle;
+    if (battle.status !== "completed") {
+      // Check that there are rounds with responses to judge
+      const hasResponses = battle.rounds.some(
+        (r) => r.challengerResponse && r.defenderResponse
       );
+      if (!hasResponses && battle.rounds.length === 0) {
+        return NextResponse.json(
+          { error: "No rounds have been played yet" },
+          { status: 400 }
+        );
+      }
+      result = await completeBattle(id);
     }
 
-    const completed = await completeBattle(id);
-    return NextResponse.json(completed);
+    const synced = await syncBattleOnChainSettlement(id);
+    return NextResponse.json(synced ?? result);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to settle battle";

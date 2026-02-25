@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
-import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X, Trophy, Binoculars, CalendarRange, Medal } from "lucide-react";
+import { LENDING_ENABLED } from "@/lib/features";
+import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X, Trophy, Binoculars, CalendarRange, Medal, BarChart3 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -17,9 +18,10 @@ const navItems = [
   { href: "/seasons", label: "Seasons", icon: CalendarRange },
   { href: "/achievements", label: "Achievements", icon: Medal },
   { href: "/fusion", label: "Fusion", icon: Combine },
-  { href: "/loans", label: "Loans", icon: Landmark },
+  ...(LENDING_ENABLED ? [{ href: "/loans", label: "Loans", icon: Landmark }] : []),
   { href: "/marketplace", label: "Market", icon: ShoppingBag },
   { href: "/bounties", label: "Bounties", icon: Target },
+  { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/download", label: "Download", icon: Download },
   { href: "/subscribe", label: "Subscribe", icon: Crown },
 ];
@@ -29,13 +31,13 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="border-b border-siphon-teal/10 bg-midnight/50 backdrop-blur-md sticky top-0 z-40">
+    <nav className="sticky top-0 z-40 border-b-2 border-siphon-teal/35 bg-[rgba(10,18,30,0.9)] backdrop-blur-sm shadow-[0_3px_0_rgba(2,7,13,0.95)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4 lg:gap-8">
             <Link href="/dashboard" className="flex items-center gap-2 group">
-              <Waves className="h-6 w-6 text-siphon-teal group-hover:drop-shadow-[0_0_8px_rgba(0,212,170,0.6)] transition-all" />
-              <span className="font-bold text-lg text-foam tracking-tight">
+              <Waves className="h-6 w-6 text-siphon-teal group-hover:scale-110 transition-transform" />
+              <span className="pixel-title text-xs sm:text-sm text-foam tracking-tight">
                 Siphon
               </span>
             </Link>
@@ -51,10 +53,10 @@ export function Navbar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "flex items-center gap-1.5 px-2.5 py-2 rounded-none border-2 text-sm font-medium transition-all",
                       isActive
-                        ? "text-siphon-teal bg-siphon-teal/10"
-                        : "text-ghost hover:text-foam hover:bg-midnight"
+                        ? "text-abyss bg-siphon-teal border-siphon-teal shadow-[0_3px_0_rgba(2,7,13,0.95)]"
+                        : "text-ghost border-transparent hover:text-foam hover:bg-midnight/70 hover:border-siphon-teal/25"
                     )}
                   >
                     <item.icon className="h-4 w-4" />
@@ -80,7 +82,7 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-siphon-teal/10 bg-midnight/95 backdrop-blur-md">
+        <div className="lg:hidden border-t-2 border-siphon-teal/20 bg-[rgba(10,18,30,0.96)] backdrop-blur-sm">
           <div className="px-4 py-3 space-y-1">
             {navItems.map((item) => {
               const isActive =
@@ -93,10 +95,10 @@ export function Navbar() {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-none border-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "text-siphon-teal bg-siphon-teal/10"
-                      : "text-ghost hover:text-foam hover:bg-midnight"
+                      ? "text-abyss bg-siphon-teal border-siphon-teal"
+                      : "text-ghost border-transparent hover:text-foam hover:bg-midnight hover:border-siphon-teal/20"
                   )}
                 >
                   <item.icon className="h-4 w-4" />

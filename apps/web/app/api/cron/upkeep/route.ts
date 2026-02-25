@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll, dbGet } from "@/lib/db";
+import { syncOutstandingBattleSettlements } from "@/lib/battle-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +15,16 @@ const UPKEEP_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
  * Calculates upkeep costs per shard owner and flags shards that haven't paid.
  */
 export async function GET() {
-  const db = getDb();
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
   // Get all owned (non-wild) shards grouped by owner
-  const owners = db
-    .prepare(
-      `SELECT owner_id, COUNT(*) as shard_count
-       FROM shards
-       WHERE owner_id IS NOT NULL AND is_wild = 0
-       GROUP BY owner_id`
-    )
-    .all() as { owner_id: string; shard_count: number }[];
+  const owners = await dbAll<{ owner_id: string; shard_count: number }>(
+    `SELECT owner_id, COUNT(*) as shard_count
+     FROM shards
+     WHERE owner_id IS NOT NULL AND is_wild = 0
+     GROUP BY owner_id`
+  );
 
   let processed = 0;
   let totalUpkeep = 0;
@@ -34,17 +32,16 @@ export async function GET() {
   for (const owner of owners) {
     // Count shards listed in shelter (is_wild = 0 means owned, shelter = listed for bonding)
     // For now we approximate: shards with recent interactions from non-owners get discount
-    const activeShards = db
-      .prepare(
-        `SELECT COUNT(DISTINCT s.id) as count
-         FROM shards s
-         JOIN training_messages tm ON tm.shard_id = s.id
-         WHERE s.owner_id = ? AND s.is_wild = 0 AND tm.timestamp > ?`
-      )
-      .get(owner.owner_id, sevenDaysAgo) as { count: number };
+    const activeShards = await dbGet<{ count: number }>(
+      `SELECT COUNT(DISTINCT s.id) as count
+       FROM shards s
+       JOIN training_messages tm ON tm.shard_id = s.id
+       WHERE s.owner_id = ? AND s.is_wild = 0 AND tm.timestamp > ?`,
+      owner.owner_id, sevenDaysAgo
+    );
 
     const totalShards = owner.shard_count;
-    const activeCount = activeShards.count;
+    const activeCount = activeShards?.count ?? 0;
     const inactiveCount = totalShards - activeCount;
 
     // Active shards get full discount, inactive pay full upkeep
@@ -59,10 +56,13 @@ export async function GET() {
     // For now, just log the upkeep calculation
   }
 
+  const battleSync = await syncOutstandingBattleSettlements(50);
+
   return NextResponse.json({
     processed,
     totalOwners: owners.length,
     totalUpkeepCents: totalUpkeep,
+    battleSettlementSync: battleSync,
     timestamp: now,
   });
 }

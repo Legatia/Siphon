@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { dbGet, dbRun } from "./db";
 import { getShardLimit, getMessageCap, TIER_PRICES } from "./stripe";
 
 interface SubscriptionInfo {
@@ -18,13 +18,11 @@ function getMonthStart(): number {
 }
 
 /** Get user's subscription info, creating a free_trainer record if none exists */
-export function getUserSubscription(userId: string): SubscriptionInfo {
-  const db = getDb();
-  const row = db
-    .prepare(
-      "SELECT * FROM subscriptions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1"
-    )
-    .get(userId) as Record<string, unknown> | undefined;
+export async function getUserSubscription(userId: string): Promise<SubscriptionInfo> {
+  const row = await dbGet<Record<string, unknown>>(
+    "SELECT * FROM subscriptions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1",
+    userId
+  );
 
   if (!row) {
     return {
@@ -44,9 +42,11 @@ export function getUserSubscription(userId: string): SubscriptionInfo {
   const lastReset = (row.last_message_reset as number) ?? 0;
   const monthStart = getMonthStart();
   if (lastReset < monthStart) {
-    db.prepare(
-      "UPDATE subscriptions SET message_count = 0, last_message_reset = ? WHERE user_id = ?"
-    ).run(monthStart, userId);
+    await dbRun(
+      "UPDATE subscriptions SET message_count = 0, last_message_reset = ? WHERE user_id = ?",
+      monthStart,
+      userId
+    );
     messageCount = 0;
   }
 
@@ -61,21 +61,19 @@ export function getUserSubscription(userId: string): SubscriptionInfo {
 }
 
 /** Get count of shards owned by user */
-export function getOwnedShardCount(userId: string): number {
-  const db = getDb();
-  const row = db
-    .prepare(
-      "SELECT COUNT(*) as count FROM shards WHERE owner_id = ? AND is_wild = 0"
-    )
-    .get(userId) as { count: number };
-  return row.count;
+export async function getOwnedShardCount(userId: string): Promise<number> {
+  const row = await dbGet<{ count: number }>(
+    "SELECT COUNT(*) as count FROM shards WHERE owner_id = ? AND is_wild = 0",
+    userId
+  );
+  return row?.count ?? 0;
 }
 
 /** Check if user can own another shard */
-export function canOwnMoreShards(
+export async function canOwnMoreShards(
   userId: string
-): { allowed: boolean; reason?: string } {
-  const sub = getUserSubscription(userId);
+): Promise<{ allowed: boolean; reason?: string }> {
+  const sub = await getUserSubscription(userId);
 
   if (sub.shardLimit === 0) {
     return {
@@ -89,7 +87,7 @@ export function canOwnMoreShards(
     return { allowed: true };
   }
 
-  const owned = getOwnedShardCount(userId);
+  const owned = await getOwnedShardCount(userId);
   if (owned >= sub.shardLimit) {
     return {
       allowed: false,
@@ -101,10 +99,10 @@ export function canOwnMoreShards(
 }
 
 /** Check if user can send a training message (and increment count if yes) */
-export function canSendMessage(
+export async function canSendMessage(
   userId: string
-): { allowed: boolean; reason?: string; remaining?: number } {
-  const sub = getUserSubscription(userId);
+): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
+  const sub = await getUserSubscription(userId);
 
   // Unlimited
   if (sub.messageCap === -1) {
@@ -126,9 +124,9 @@ export function canSendMessage(
 }
 
 /** Increment the message counter for a user */
-export function incrementMessageCount(userId: string): void {
-  const db = getDb();
-  db.prepare(
-    "UPDATE subscriptions SET message_count = message_count + 1 WHERE user_id = ?"
-  ).run(userId);
+export async function incrementMessageCount(userId: string): Promise<void> {
+  await dbRun(
+    "UPDATE subscriptions SET message_count = message_count + 1 WHERE user_id = ?",
+    userId
+  );
 }

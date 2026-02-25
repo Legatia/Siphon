@@ -1,6 +1,6 @@
 "use client";
 
-type SfxEvent =
+export type SfxEvent =
   | "capture_success"
   | "capture_fail"
   | "xp_gain"
@@ -10,13 +10,14 @@ type SfxEvent =
   | "battle_lose"
   | "timer_warning";
 
-type CelebrationType = "capture" | "level_up" | "battle_win";
+export type CelebrationType = "capture" | "level_up" | "battle_win";
 
 type OnboardingState = {
   driftVisited: boolean;
   captured: boolean;
   trained: boolean;
   battled: boolean;
+  outcomeActivated: boolean;
 };
 
 const defaultOnboarding: OnboardingState = {
@@ -24,6 +25,7 @@ const defaultOnboarding: OnboardingState = {
   captured: false,
   trained: false,
   battled: false,
+  outcomeActivated: false,
 };
 
 function onboardingKey(ownerId: string) {
@@ -72,6 +74,12 @@ export function playSfx(event: SfxEvent) {
     timer_warning: [780, 720],
   };
   const [from, to] = profiles[event];
+  const intensity = Math.min(1, Math.max(0.2, Math.abs(to - from) / 800));
+  window.dispatchEvent(
+    new CustomEvent("siphon:sfx", {
+      detail: { event, intensity, from, to },
+    })
+  );
   osc.frequency.setValueAtTime(from, now);
   osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), now + 0.2);
   gain.gain.setValueAtTime(0.0001, now);

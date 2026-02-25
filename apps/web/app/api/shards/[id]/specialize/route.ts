@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getShardById } from "@/lib/shard-engine";
-import { getDb } from "@/lib/db";
+import { dbRun } from "@/lib/db";
 import {
   PROTOCOL_CONSTANTS,
   SPECIALIZATION_BRANCHES,
@@ -28,7 +28,7 @@ export async function POST(
       );
     }
 
-    const shard = getShardById(id);
+    const shard = await getShardById(id);
     if (!shard) {
       return NextResponse.json(
         { error: "Shard not found" },
@@ -75,8 +75,8 @@ export async function POST(
     const specialization = branches[branch];
 
     // Update the shard's specialization in the database
-    const db = getDb();
-    db.prepare("UPDATE shards SET specialization = ? WHERE id = ?").run(
+    await dbRun(
+      "UPDATE shards SET specialization = ? WHERE id = ?",
       specialization,
       shard.id
     );

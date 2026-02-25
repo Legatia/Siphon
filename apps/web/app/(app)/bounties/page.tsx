@@ -15,10 +15,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  ShieldCheck,
+  WandSparkles,
 } from "lucide-react";
 import * as Tabs from "@radix-ui/react-tabs";
 import type { Shard } from "@siphon/core";
-import { parseEther, formatEther } from "viem";
+import { parseEther } from "viem";
 import {
   BOUNTY_BOARD_ABI,
   BOUNTY_BOARD_ADDRESS,
@@ -27,6 +29,8 @@ import {
   idToBytes32,
 } from "@/lib/contracts";
 import { toast } from "sonner";
+import { updateOnboardingProgress } from "@/lib/game-feedback";
+import { useSmartWrite } from "@/hooks/use-smart-write";
 
 interface BountyRecord {
   id: string;
@@ -44,6 +48,47 @@ interface BountyRecord {
   created_at: number;
 }
 
+interface RecommendationRow {
+  bountyId: string;
+  reward: string;
+  deadline: number;
+  bestMatch: {
+    shardId: string;
+    shardName: string;
+    score: number;
+    reasons: string[];
+  } | null;
+  alternatives: Array<{
+    shardId: string;
+    shardName: string;
+    score: number;
+    reasons: string[];
+  }>;
+}
+
+interface ReputationRow {
+  address: string;
+  completionRate: number;
+  disputeRate: number;
+  trustScore: number;
+  earningsEth: number;
+  completedAsClaimant: number;
+}
+
+interface QualityRow {
+  overall: number;
+  verdict: "excellent" | "good" | "needs_work";
+  dimensions: {
+    completeness: number;
+    specificity: number;
+    actionability: number;
+    clarity: number;
+  };
+  strengths: string[];
+  risks: string[];
+  summary: string;
+}
+
 const STATE_BADGES: Record<string, { color: string; icon: React.ReactNode }> = {
   Open: { color: "bg-siphon-teal/10 text-siphon-teal border-siphon-teal/30", icon: <Target className="h-3 w-3" /> },
   Claimed: { color: "bg-deep-violet/10 text-deep-violet border-deep-violet/30", icon: <Clock className="h-3 w-3" /> },
@@ -54,6 +99,7 @@ const STATE_BADGES: Record<string, { color: string; icon: React.ReactNode }> = {
 
 export default function BountiesPage() {
   const { address } = useAccount();
+  const { smartWrite, isSmartWallet } = useSmartWrite();
   const [bounties, setBounties] = useState<BountyRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,6 +117,10 @@ export default function BountiesPage() {
   const [disputingId, setDisputingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<Record<string, RecommendationRow>>({});
+  const [reputationByAddress, setReputationByAddress] = useState<Record<string, ReputationRow>>({});
+  const [qualityByBountyId, setQualityByBountyId] = useState<Record<string, QualityRow>>({});
+  const [qualityLoadingId, setQualityLoadingId] = useState<string | null>(null);
 
   // Fetch user's shards for claim picker
   useEffect(() => {
@@ -95,6 +145,67 @@ export default function BountiesPage() {
     fetchBounties();
   }, [fetchBounties]);
 
+  useEffect(() => {
+    if (!address) {
+      setRecommendations({});
+      return;
+    }
+    fetch("/api/bounties/recommendations")
+      .then((r) => r.json())
+      .then((rows: RecommendationRow[]) => {
+        const next: Record<string, RecommendationRow> = {};
+        for (const row of rows) next[row.bountyId] = row;
+        setRecommendations(next);
+      })
+      .catch(() => {});
+  }, [address, bounties.length]);
+
+  useEffect(() => {
+    if (!address || bounties.length === 0) {
+      setReputationByAddress({});
+      return;
+    }
+    const addresses = Array.from(
+      new Set(
+        bounties
+          .flatMap((b) => [b.poster, b.claimant].filter(Boolean))
+          .map((a) => String(a).toLowerCase())
+      )
+    );
+    fetch("/api/operators/reputation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addresses }),
+    })
+      .then((r) => r.json())
+      .then((rows: ReputationRow[]) => {
+        const map: Record<string, ReputationRow> = {};
+        for (const row of rows) map[row.address.toLowerCase()] = row;
+        setReputationByAddress(map);
+      })
+      .catch(() => {});
+  }, [address, bounties]);
+
+  const shortAddress = (value?: string) =>
+    value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "-";
+
+  const getReputation = (value?: string) =>
+    value ? reputationByAddress[value.toLowerCase()] : undefined;
+
+  const loadQuality = async (bountyId: string) => {
+    setQualityLoadingId(bountyId);
+    try {
+      const res = await fetch(`/api/bounties/${bountyId}/quality`);
+      if (!res.ok) throw new Error("Failed quality analysis");
+      const data = await res.json();
+      setQualityByBountyId((prev) => ({ ...prev, [bountyId]: data.quality as QualityRow }));
+    } catch {
+      toast.error("Failed to analyze output quality");
+    } finally {
+      setQualityLoadingId(null);
+    }
+  };
+
   const handlePostBounty = async () => {
     if (!address || !description || !reward) return;
 
@@ -110,16 +221,30 @@ export default function BountiesPage() {
       );
       const rewardWei = parseEther(reward);
 
-      const hash = await walletClient.writeContract({
-        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
-        abi: BOUNTY_BOARD_ABI,
-        functionName: "postBounty",
-        args: [bountyIdHex, description, BigInt(deadlineTimestamp)],
-        value: rewardWei,
-        account: address,
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      let hash: string;
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+            abi: BOUNTY_BOARD_ABI,
+            functionName: "postBounty",
+            args: [bountyIdHex, description, BigInt(deadlineTimestamp)],
+            value: rewardWei,
+          },
+        ]);
+        if (!batchId) throw new Error("Smart wallet post failed");
+        hash = String(batchId);
+      } else {
+        hash = await walletClient.writeContract({
+          address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+          abi: BOUNTY_BOARD_ABI,
+          functionName: "postBounty",
+          args: [bountyIdHex, description, BigInt(deadlineTimestamp)],
+          value: rewardWei,
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
+      }
 
       // Record in API
       const res = await fetch("/api/bounties", {
@@ -141,6 +266,7 @@ export default function BountiesPage() {
         setDescription("");
         setReward("");
         toast.success("Bounty posted!");
+        updateOnboardingProgress(address, { outcomeActivated: true });
         fetchBounties();
       }
     } catch (error) {
@@ -159,18 +285,29 @@ export default function BountiesPage() {
       const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
-      const hash = await walletClient.writeContract({
-        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
-        abi: BOUNTY_BOARD_ABI,
-        functionName: "claimBounty",
-        args: [
-          bounty.bounty_id_hex as `0x${string}`,
-          idToBytes32(shardOrSwarmId),
-        ],
-        account: address,
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+            abi: BOUNTY_BOARD_ABI,
+            functionName: "claimBounty",
+            args: [bounty.bounty_id_hex as `0x${string}`, idToBytes32(shardOrSwarmId)],
+          },
+        ]);
+        if (!batchId) throw new Error("Smart wallet claim failed");
+      } else {
+        const hash = await walletClient.writeContract({
+          address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+          abi: BOUNTY_BOARD_ABI,
+          functionName: "claimBounty",
+          args: [
+            bounty.bounty_id_hex as `0x${string}`,
+            idToBytes32(shardOrSwarmId),
+          ],
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
 
       // Persist claim to DB
       await fetch("/api/bounties", {
@@ -185,6 +322,7 @@ export default function BountiesPage() {
       });
 
       toast.success("Bounty claimed!");
+      updateOnboardingProgress(address, { outcomeActivated: true });
       fetchBounties();
     } catch (error) {
       toast.error("Failed to claim bounty");
@@ -202,15 +340,26 @@ export default function BountiesPage() {
       const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
-      const hash = await walletClient.writeContract({
-        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
-        abi: BOUNTY_BOARD_ABI,
-        functionName: "completeBounty",
-        args: [bounty.bounty_id_hex as `0x${string}`],
-        account: address,
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+            abi: BOUNTY_BOARD_ABI,
+            functionName: "completeBounty",
+            args: [bounty.bounty_id_hex as `0x${string}`],
+          },
+        ]);
+        if (!batchId) throw new Error("Smart wallet complete failed");
+      } else {
+        const hash = await walletClient.writeContract({
+          address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+          abi: BOUNTY_BOARD_ABI,
+          functionName: "completeBounty",
+          args: [bounty.bounty_id_hex as `0x${string}`],
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
 
       // Update DB
       await fetch("/api/bounties", {
@@ -220,6 +369,7 @@ export default function BountiesPage() {
       });
 
       toast.success("Bounty approved!");
+      updateOnboardingProgress(address, { outcomeActivated: true });
       fetchBounties();
     } catch (error) {
       toast.error("Failed to complete bounty");
@@ -237,15 +387,26 @@ export default function BountiesPage() {
       const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
-      const hash = await walletClient.writeContract({
-        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
-        abi: BOUNTY_BOARD_ABI,
-        functionName: "disputeBounty",
-        args: [bounty.bounty_id_hex as `0x${string}`],
-        account: address,
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+            abi: BOUNTY_BOARD_ABI,
+            functionName: "disputeBounty",
+            args: [bounty.bounty_id_hex as `0x${string}`],
+          },
+        ]);
+        if (!batchId) throw new Error("Smart wallet dispute failed");
+      } else {
+        const hash = await walletClient.writeContract({
+          address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+          abi: BOUNTY_BOARD_ABI,
+          functionName: "disputeBounty",
+          args: [bounty.bounty_id_hex as `0x${string}`],
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
 
       // Update DB
       await fetch("/api/bounties", {
@@ -272,15 +433,26 @@ export default function BountiesPage() {
       const walletClient = await getWalletClient();
       if (!walletClient) throw new Error("No wallet");
 
-      const hash = await walletClient.writeContract({
-        address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
-        abi: BOUNTY_BOARD_ABI,
-        functionName: "cancelBounty",
-        args: [bounty.bounty_id_hex as `0x${string}`],
-        account: address,
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (isSmartWallet) {
+        const batchId = await smartWrite([
+          {
+            address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+            abi: BOUNTY_BOARD_ABI,
+            functionName: "cancelBounty",
+            args: [bounty.bounty_id_hex as `0x${string}`],
+          },
+        ]);
+        if (!batchId) throw new Error("Smart wallet cancel failed");
+      } else {
+        const hash = await walletClient.writeContract({
+          address: BOUNTY_BOARD_ADDRESS as `0x${string}`,
+          abi: BOUNTY_BOARD_ABI,
+          functionName: "cancelBounty",
+          args: [bounty.bounty_id_hex as `0x${string}`],
+          account: address,
+        });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
 
       // Persist cancel to DB
       await fetch("/api/bounties", {
@@ -325,15 +497,47 @@ export default function BountiesPage() {
   const closedBounties = bounties.filter(
     (b) => b.state === "Completed" || b.state === "Cancelled"
   );
+  const openRewardPoolEth = openBounties.reduce(
+    (sum, b) => sum + Number.parseFloat(String(b.reward || "0")),
+    0
+  );
+  const myActiveOutcomeCount = address
+    ? activeBounties.filter(
+        (b) =>
+          b.claimant?.toLowerCase() === address.toLowerCase() ||
+          b.poster.toLowerCase() === address.toLowerCase()
+      ).length
+    : 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foam">Bounty Board</h1>
-        <p className="text-ghost text-sm mt-1">
-          Post tasks with ETH rewards. Agents claim and complete bounties.
+        <h1 className="pixel-title text-[14px] text-foam">Bounty Board</h1>
+        <p className="text-ghost mt-2">
+          This is the real-value layer: game-trained shards execute paid work with on-chain escrow.
         </p>
       </div>
+
+      <Card className="border-siphon-teal/30 bg-[#071123]/90 p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="border border-siphon-teal/15 bg-abyss/50 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-ghost/70">Open Tasks</p>
+            <p className="text-xl font-mono text-foam">{openBounties.length}</p>
+          </div>
+          <div className="border border-siphon-teal/15 bg-abyss/50 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-ghost/70">Escrow Pool</p>
+            <p className="text-xl font-mono text-siphon-teal">{openRewardPoolEth.toFixed(3)} ETH</p>
+          </div>
+          <div className="border border-siphon-teal/15 bg-abyss/50 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-ghost/70">In Progress</p>
+            <p className="text-xl font-mono text-foam">{activeBounties.length}</p>
+          </div>
+          <div className="border border-siphon-teal/15 bg-abyss/50 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-ghost/70">Your Active</p>
+            <p className="text-xl font-mono text-amber-300">{myActiveOutcomeCount}</p>
+          </div>
+        </div>
+      </Card>
 
       <Tabs.Root defaultValue="open" className="space-y-4">
         <Tabs.List className="flex border-b border-ghost/10">
@@ -383,6 +587,11 @@ export default function BountiesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {openBounties.map((bounty) => (
                 <Card key={bounty.id} className="p-4">
+                  {(() => {
+                    const rep = getReputation(bounty.poster);
+                    const rec = recommendations[bounty.id];
+                    return (
+                      <>
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foam line-clamp-2">
@@ -395,14 +604,28 @@ export default function BountiesPage() {
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-ghost/50 mb-3">
                     <span>
-                      By: {bounty.poster.slice(0, 6)}...
-                      {bounty.poster.slice(-4)}
+                      By: {shortAddress(bounty.poster)}
                     </span>
                     <span>
                       Deadline:{" "}
                       {new Date(bounty.deadline).toLocaleDateString()}
                     </span>
+                    {rep && (
+                      <span className="text-siphon-teal/80">
+                        Trust {rep.trustScore}
+                      </span>
+                    )}
                   </div>
+                  {rec?.bestMatch && (
+                    <div className="mb-3 border border-siphon-teal/20 bg-abyss/50 p-2 text-xs">
+                      <p className="text-siphon-teal">
+                        Best match: {rec.bestMatch.shardName} (fit {rec.bestMatch.score})
+                      </p>
+                      <p className="text-ghost/70 mt-1">
+                        {rec.bestMatch.reasons.join(" · ")}
+                      </p>
+                    </div>
+                  )}
                   {address &&
                   address.toLowerCase() !== bounty.poster.toLowerCase() ? (
                     <div className="space-y-2">
@@ -449,6 +672,18 @@ export default function BountiesPage() {
                           "Claim Bounty"
                         )}
                       </Button>
+                      {rec?.bestMatch && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => handleClaimBounty(bounty, rec.bestMatch!.shardId)}
+                          disabled={claimingId === bounty.id}
+                        >
+                          <WandSparkles className="h-4 w-4 mr-2" />
+                          Claim With Best Match
+                        </Button>
+                      )}
                     </div>
                   ) : address &&
                     address.toLowerCase() ===
@@ -467,6 +702,9 @@ export default function BountiesPage() {
                       )}
                     </Button>
                   ) : null}
+                      </>
+                    );
+                  })()}
                 </Card>
               ))}
             </div>
@@ -486,6 +724,8 @@ export default function BountiesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {activeBounties.map((bounty) => {
                 const badge = STATE_BADGES[bounty.state] || STATE_BADGES.Open;
+                const claimantRep = getReputation(bounty.claimant);
+                const quality = qualityByBountyId[bounty.id];
                 return (
                   <Card key={bounty.id} className="p-4">
                     <div className="flex justify-between items-start mb-2">
@@ -503,8 +743,8 @@ export default function BountiesPage() {
                       <p>Reward: {bounty.reward} ETH</p>
                       {bounty.claimant && (
                         <p>
-                          Claimant: {bounty.claimant.slice(0, 6)}...
-                          {bounty.claimant.slice(-4)}
+                          Claimant: {shortAddress(bounty.claimant)}
+                          {claimantRep ? ` · Trust ${claimantRep.trustScore}` : ""}
                         </p>
                       )}
                       {bounty.execution_status && (
@@ -515,6 +755,41 @@ export default function BountiesPage() {
                       <div className="mb-3 rounded border border-siphon-teal/10 bg-abyss/60 p-2">
                         <p className="text-[10px] text-ghost/70 mb-1">Shard output</p>
                         <p className="text-xs text-foam/80 line-clamp-4">{bounty.execution_result}</p>
+                      </div>
+                    )}
+                    {bounty.execution_result && (
+                      <div className="mb-3 border border-siphon-teal/20 bg-abyss/50 p-2">
+                        {quality ? (
+                          <>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-siphon-teal inline-flex items-center gap-1">
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                                Quality {quality.overall} ({quality.verdict})
+                              </span>
+                              <span className="text-ghost/70">
+                                Clarity {quality.dimensions.clarity} · Action {quality.dimensions.actionability}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-ghost mt-1">{quality.summary}</p>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => loadQuality(bounty.id)}
+                            disabled={qualityLoadingId === bounty.id}
+                          >
+                            {qualityLoadingId === bounty.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <ShieldCheck className="h-4 w-4 mr-2" />
+                                Analyze Output Quality
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     )}
                     {address && bounty.state === "Claimed" && (

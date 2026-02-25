@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll, dbRun } from "@/lib/db";
 import crypto from "crypto";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 import { getUserSubscription } from "@/lib/subscription-check";
@@ -11,8 +11,6 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const slot = searchParams.get("slot");
   const rarity = searchParams.get("rarity");
-
-  const db = getDb();
 
   let query = "SELECT * FROM cosmetics WHERE 1=1";
   const params: unknown[] = [];
@@ -29,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   query += " ORDER BY created_at DESC";
 
-  const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
+  const rows = await dbAll<Record<string, unknown>>(query, ...(params as any[]));
 
   const cosmetics = rows.map((row) => ({
     id: row.id,
@@ -75,7 +73,7 @@ export async function POST(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, creatorId, "creatorId");
     if (mismatch) return mismatch;
 
-    const sub = getUserSubscription(auth.address);
+    const sub = await getUserSubscription(auth.address);
     if (!tierMeetsRequirement(sub.tier, "keeper_plus")) {
       return NextResponse.json(
         { error: "Creating cosmetics requires Keeper+ tier or higher" },
@@ -102,14 +100,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDb();
     const id = crypto.randomUUID();
     const now = Date.now();
 
-    db.prepare(
+    await dbRun(
       `INSERT INTO cosmetics (id, name, slot, rarity, description, preview_data, price, creator_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, name, slot, cosmeticRarity, description, previewData, price || 0, creatorId, now);
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, slot, cosmeticRarity, description, previewData, price || 0, creatorId, now
+    );
 
     const cosmetic = {
       id,

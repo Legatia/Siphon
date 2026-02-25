@@ -1,76 +1,97 @@
-import { getDb, shardToRow, rowToShard } from "./db";
+import { getDb, shardToRow, rowToShard, dbGet, dbAll, dbRun } from "./db";
 import { spawnShard, addXp, type Shard } from "@siphon/core";
 
-export function spawnWildShard(): Shard {
-  const db = getDb();
+export async function spawnWildShard(): Promise<Shard> {
   const shard = spawnShard();
   const row = shardToRow(shard);
-
-  db.prepare(`
-    INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating)
-    VALUES (@id, @genome_hash, @type, @species, @name, @level, @xp, @owner_id, @is_wild, @avatar_json, @specialization, @personality, @stats_json, @created_at, @last_interaction, @decay_factor, @last_decay_check, @fused_from_json, @cosmetic_slots_json, @token_id, @elo_rating)
-  `).run(row);
+  const c = await getDb();
+  await c.execute({
+    sql: `INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating)
+    VALUES (:id, :genome_hash, :type, :species, :name, :level, :xp, :owner_id, :is_wild, :avatar_json, :specialization, :personality, :stats_json, :created_at, :last_interaction, :decay_factor, :last_decay_check, :fused_from_json, :cosmetic_slots_json, :token_id, :elo_rating)`,
+    args: {
+      id: row.id,
+      genome_hash: row.genome_hash,
+      type: row.type,
+      species: row.species,
+      name: row.name,
+      level: row.level,
+      xp: row.xp,
+      owner_id: row.owner_id,
+      is_wild: row.is_wild,
+      avatar_json: row.avatar_json,
+      specialization: row.specialization,
+      personality: row.personality,
+      stats_json: row.stats_json,
+      created_at: row.created_at,
+      last_interaction: row.last_interaction,
+      decay_factor: row.decay_factor,
+      last_decay_check: row.last_decay_check,
+      fused_from_json: row.fused_from_json,
+      cosmetic_slots_json: row.cosmetic_slots_json,
+      token_id: row.token_id,
+      elo_rating: row.elo_rating,
+    },
+  });
 
   return shard;
 }
 
-export function getWildShards(): Shard[] {
-  const db = getDb();
-  const rows = db.prepare("SELECT * FROM shards WHERE is_wild = 1").all();
+export async function getWildShards(): Promise<Shard[]> {
+  const rows = await dbAll("SELECT * FROM shards WHERE is_wild = 1");
   return rows.map(rowToShard);
 }
 
-export function getShardById(id: string): Shard | null {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM shards WHERE id = ?").get(id);
+export async function getShardById(id: string): Promise<Shard | null> {
+  const row = await dbGet("SELECT * FROM shards WHERE id = ?", id);
   return row ? rowToShard(row) : null;
 }
 
-export function getOwnedShards(ownerId: string): Shard[] {
-  const db = getDb();
-  const rows = db
-    .prepare("SELECT * FROM shards WHERE owner_id = ? AND is_wild = 0")
-    .all(ownerId);
+export async function getOwnedShards(ownerId: string): Promise<Shard[]> {
+  const rows = await dbAll(
+    "SELECT * FROM shards WHERE owner_id = ? AND is_wild = 0",
+    ownerId
+  );
   return rows.map(rowToShard);
 }
 
-export function getAllShards(): Shard[] {
-  const db = getDb();
-  const rows = db.prepare("SELECT * FROM shards WHERE is_wild = 0").all();
+export async function getAllShards(): Promise<Shard[]> {
+  const rows = await dbAll("SELECT * FROM shards WHERE is_wild = 0");
   return rows.map(rowToShard);
 }
 
-export function captureShard(shardId: string, ownerId: string): Shard | null {
-  const db = getDb();
-  const result = db
-    .prepare(
-      "UPDATE shards SET is_wild = 0, owner_id = ?, last_interaction = ? WHERE id = ? AND is_wild = 1"
-    )
-    .run(ownerId, Date.now(), shardId);
+export async function captureShard(shardId: string, ownerId: string): Promise<Shard | null> {
+  const result = await dbRun(
+    "UPDATE shards SET is_wild = 0, owner_id = ?, last_interaction = ? WHERE id = ? AND is_wild = 1",
+    ownerId,
+    Date.now(),
+    shardId
+  );
 
-  if (result.changes === 0) return null;
+  if (result.rowsAffected === 0) return null;
   return getShardById(shardId);
 }
 
-export function releaseToWild(shardId: string, ownerId: string): boolean {
-  const db = getDb();
-  const result = db
-    .prepare(
-      "UPDATE shards SET is_wild = 1, owner_id = NULL WHERE id = ? AND owner_id = ?"
-    )
-    .run(shardId, ownerId);
-  return result.changes > 0;
+export async function releaseToWild(shardId: string, ownerId: string): Promise<boolean> {
+  const result = await dbRun(
+    "UPDATE shards SET is_wild = 1, owner_id = NULL WHERE id = ? AND owner_id = ?",
+    shardId,
+    ownerId
+  );
+  return (result.rowsAffected ?? 0) > 0;
 }
 
-export function updateShardXp(shardId: string, xpAmount: number): Shard | null {
-  const shard = getShardById(shardId);
+export async function updateShardXp(shardId: string, xpAmount: number): Promise<Shard | null> {
+  const shard = await getShardById(shardId);
   if (!shard) return null;
 
   const updated = addXp(shard, xpAmount);
-  const db = getDb();
-  db.prepare(
-    "UPDATE shards SET level = ?, xp = ?, last_interaction = ? WHERE id = ?"
-  ).run(updated.level, updated.xp, updated.lastInteraction, shardId);
+  await dbRun(
+    "UPDATE shards SET level = ?, xp = ?, last_interaction = ? WHERE id = ?",
+    updated.level,
+    updated.xp,
+    updated.lastInteraction,
+    shardId
+  );
 
   return updated;
 }
@@ -79,8 +100,8 @@ export function updateShardXp(shardId: string, xpAmount: number): Shard | null {
  * Award a small stat boost to the shard based on its type.
  * Each training interaction has a chance to improve the shard's primary stat.
  */
-export function improveShardStats(shardId: string): Shard | null {
-  const shard = getShardById(shardId);
+export async function improveShardStats(shardId: string): Promise<Shard | null> {
+  const shard = await getShardById(shardId);
   if (!shard) return null;
 
   // Type → primary stat mapping
@@ -113,8 +134,8 @@ export function improveShardStats(shardId: string): Shard | null {
   // Only update if something changed
   if (JSON.stringify(stats) === JSON.stringify(shard.stats)) return shard;
 
-  const db = getDb();
-  db.prepare("UPDATE shards SET stats_json = ? WHERE id = ?").run(
+  await dbRun(
+    "UPDATE shards SET stats_json = ? WHERE id = ?",
     JSON.stringify(stats),
     shardId
   );
@@ -122,12 +143,12 @@ export function improveShardStats(shardId: string): Shard | null {
   return { ...shard, stats };
 }
 
-export function ensureWildShards(minCount: number = 8): Shard[] {
-  const wild = getWildShards();
+export async function ensureWildShards(minCount: number = 8): Promise<Shard[]> {
+  const wild = await getWildShards();
   const toSpawn = Math.max(0, minCount - wild.length);
   const spawned: Shard[] = [];
   for (let i = 0; i < toSpawn; i++) {
-    spawned.push(spawnWildShard());
+    spawned.push(await spawnWildShard());
   }
   return [...wild, ...spawned];
 }

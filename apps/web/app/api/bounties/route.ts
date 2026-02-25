@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbAll, dbGet, dbRun } from "@/lib/db";
 import crypto from "crypto";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 import { getShardById } from "@/lib/shard-engine";
 import { generateShardResponse } from "@/lib/llm";
+import { logActivationEvent } from "@/lib/activation-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -16,17 +17,16 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
 
   try {
-    const db = getDb();
-
     let bounties;
     if (state) {
-      bounties = db
-        .prepare("SELECT * FROM bounties WHERE state = ? ORDER BY created_at DESC")
-        .all(state);
+      bounties = await dbAll(
+        "SELECT * FROM bounties WHERE state = ? ORDER BY created_at DESC",
+        state
+      );
     } else {
-      bounties = db
-        .prepare("SELECT * FROM bounties ORDER BY created_at DESC")
-        .all();
+      bounties = await dbAll(
+        "SELECT * FROM bounties ORDER BY created_at DESC"
+      );
     }
 
     return NextResponse.json(bounties);
@@ -56,15 +56,14 @@ export async function POST(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, poster, "poster");
     if (mismatch) return mismatch;
 
-    const db = getDb();
-
     const id = crypto.randomUUID();
     const now = Date.now();
 
-    db.prepare(`
-      INSERT INTO bounties (id, bounty_id_hex, poster, reward, description, deadline, state, tx_hash, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'Open', ?, ?)
-    `).run(id, bountyIdHex, poster, reward, description, deadline, txHash, now);
+    await dbRun(
+      `INSERT INTO bounties (id, bounty_id_hex, poster, reward, description, deadline, state, tx_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'Open', ?, ?)`,
+      id, bountyIdHex, poster, reward, description, deadline, txHash, now
+    );
 
     return NextResponse.json({ id, bountyIdHex, poster, reward, description, deadline, state: "Open" }, { status: 201 });
   } catch (error) {
@@ -91,10 +90,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const db = getDb();
-    const bounty = db
-      .prepare("SELECT * FROM bounties WHERE id = ?")
-      .get(bountyId) as BountyRow | undefined;
+    const bounty = await dbGet<BountyRow>(
+      "SELECT * FROM bounties WHERE id = ?",
+      bountyId
+    );
 
     if (!bounty) {
       return NextResponse.json({ error: "Bounty not found" }, { status: 404 });
@@ -105,30 +104,46 @@ export async function PATCH(request: NextRequest) {
         if (bounty.state !== "Open") {
           return NextResponse.json({ error: "Bounty is not open" }, { status: 400 });
         }
-        db.prepare("UPDATE bounties SET state = 'Claimed', claimant = ?, shard_or_swarm_id = ? WHERE id = ?")
-          .run(auth.address, shardOrSwarmId ?? null, bountyId);
+        await dbRun(
+          "UPDATE bounties SET state = 'Claimed', claimant = ?, shard_or_swarm_id = ? WHERE id = ?",
+          auth.address, shardOrSwarmId ?? null, bountyId
+        );
+        await logActivationEvent({
+          ownerId: auth.address,
+          eventType: "claimed_bounty",
+          source: "api:bounties/claim",
+          entityId: bountyId,
+          uniqueKey: `${auth.address}:claimed_bounty:${bountyId}`,
+          metadata: { shardOrSwarmId: shardOrSwarmId ?? null, reward: bounty.reward },
+        });
 
         // Trigger actual shard execution against bounty description.
         if (shardOrSwarmId) {
-          db.prepare("UPDATE bounties SET execution_status = 'running' WHERE id = ?").run(bountyId);
+          await dbRun("UPDATE bounties SET execution_status = 'running' WHERE id = ?", bountyId);
           try {
-            const shard = getShardById(shardOrSwarmId);
+            const shard = await getShardById(shardOrSwarmId);
             if (!shard) {
-              db.prepare("UPDATE bounties SET execution_status = 'failed', execution_result = ? WHERE id = ?")
-                .run("Shard not found for execution", bountyId);
+              await dbRun(
+                "UPDATE bounties SET execution_status = 'failed', execution_result = ? WHERE id = ?",
+                "Shard not found for execution", bountyId
+              );
             } else {
               const result = await generateShardResponse(
                 shard,
                 [],
                 `Complete this bounty task:\n\n${bounty.description}`
               );
-              db.prepare("UPDATE bounties SET execution_status = 'completed', execution_result = ? WHERE id = ?")
-                .run(result, bountyId);
+              await dbRun(
+                "UPDATE bounties SET execution_status = 'completed', execution_result = ? WHERE id = ?",
+                result, bountyId
+              );
             }
           } catch (err) {
             const message = err instanceof Error ? err.message : "Execution failed";
-            db.prepare("UPDATE bounties SET execution_status = 'failed', execution_result = ? WHERE id = ?")
-              .run(message, bountyId);
+            await dbRun(
+              "UPDATE bounties SET execution_status = 'failed', execution_result = ? WHERE id = ?",
+              message, bountyId
+            );
           }
         }
         break;
@@ -140,7 +155,17 @@ export async function PATCH(request: NextRequest) {
         if (auth.address !== bounty.poster.toLowerCase()) {
           return NextResponse.json({ error: "Only the poster can complete a bounty" }, { status: 403 });
         }
-        db.prepare("UPDATE bounties SET state = 'Completed' WHERE id = ?").run(bountyId);
+        await dbRun("UPDATE bounties SET state = 'Completed' WHERE id = ?", bountyId);
+        if (bounty.claimant) {
+          await logActivationEvent({
+            ownerId: bounty.claimant,
+            eventType: "completed_bounty",
+            source: "api:bounties/complete",
+            entityId: bountyId,
+            uniqueKey: `${bounty.claimant.toLowerCase()}:completed_bounty:${bountyId}`,
+            metadata: { reward: bounty.reward, poster: bounty.poster },
+          });
+        }
         break;
       }
       case "dispute": {
@@ -150,7 +175,7 @@ export async function PATCH(request: NextRequest) {
         if (auth.address !== bounty.poster.toLowerCase() && auth.address !== bounty.claimant?.toLowerCase()) {
           return NextResponse.json({ error: "Only the poster or claimant can dispute" }, { status: 403 });
         }
-        db.prepare("UPDATE bounties SET state = 'Disputed' WHERE id = ?").run(bountyId);
+        await dbRun("UPDATE bounties SET state = 'Disputed' WHERE id = ?", bountyId);
         break;
       }
       case "cancel": {
@@ -160,7 +185,7 @@ export async function PATCH(request: NextRequest) {
         if (auth.address !== bounty.poster.toLowerCase()) {
           return NextResponse.json({ error: "Only the poster can cancel" }, { status: 403 });
         }
-        db.prepare("UPDATE bounties SET state = 'Cancelled' WHERE id = ?").run(bountyId);
+        await dbRun("UPDATE bounties SET state = 'Cancelled' WHERE id = ?", bountyId);
         break;
       }
       case "resolve_complete": {
@@ -171,7 +196,17 @@ export async function PATCH(request: NextRequest) {
         if (auth.address !== bounty.poster.toLowerCase() && auth.address !== arbiter) {
           return NextResponse.json({ error: "Only poster or arbiter can resolve dispute" }, { status: 403 });
         }
-        db.prepare("UPDATE bounties SET state = 'Completed' WHERE id = ?").run(bountyId);
+        await dbRun("UPDATE bounties SET state = 'Completed' WHERE id = ?", bountyId);
+        if (bounty.claimant) {
+          await logActivationEvent({
+            ownerId: bounty.claimant,
+            eventType: "completed_bounty",
+            source: "api:bounties/resolve_complete",
+            entityId: bountyId,
+            uniqueKey: `${bounty.claimant.toLowerCase()}:completed_bounty:${bountyId}`,
+            metadata: { reward: bounty.reward, poster: bounty.poster, disputed: true },
+          });
+        }
         break;
       }
       case "resolve_cancel": {
@@ -182,14 +217,14 @@ export async function PATCH(request: NextRequest) {
         if (auth.address !== bounty.poster.toLowerCase() && auth.address !== arbiter) {
           return NextResponse.json({ error: "Only poster or arbiter can resolve dispute" }, { status: 403 });
         }
-        db.prepare("UPDATE bounties SET state = 'Cancelled' WHERE id = ?").run(bountyId);
+        await dbRun("UPDATE bounties SET state = 'Cancelled' WHERE id = ?", bountyId);
         break;
       }
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    const updated = db.prepare("SELECT * FROM bounties WHERE id = ?").get(bountyId);
+    const updated = await dbGet("SELECT * FROM bounties WHERE id = ?", bountyId);
     return NextResponse.json(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update bounty";

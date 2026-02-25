@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getLoan,
+  findLoanTxUsage,
   fundLoan,
   repayLoan,
   liquidateLoan,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/loan-engine";
 import { requireSessionAddress } from "@/lib/session-auth";
 import { verifyLoanActionTx } from "@/lib/loan-onchain";
+import { isLendingEnabled } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,15 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isLendingEnabled()) {
+    return NextResponse.json(
+      { error: "Lending is disabled for this deployment" },
+      { status: 404 }
+    );
+  }
+
   const { id } = await params;
-  const loan = getLoan(id);
+  const loan = await getLoan(id);
 
   if (!loan) {
     return NextResponse.json({ error: "Loan not found" }, { status: 404 });
@@ -29,6 +38,13 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isLendingEnabled()) {
+    return NextResponse.json(
+      { error: "Lending is disabled for this deployment" },
+      { status: 404 }
+    );
+  }
+
   const { id } = await params;
 
   try {
@@ -48,6 +64,32 @@ export async function PATCH(
       return NextResponse.json(
         { error: "txHash is required for all loan actions" },
         { status: 400 }
+      );
+    }
+
+    const expectedColumnByAction: Record<string, string> = {
+      fund: "fund_tx_hash",
+      repay: "repay_tx_hash",
+      liquidate: "liquidate_tx_hash",
+      cancel: "cancel_tx_hash",
+    };
+    const expectedColumn = expectedColumnByAction[action];
+    if (!expectedColumn) {
+      return NextResponse.json(
+        { error: "Invalid action. Must be: fund, repay, liquidate, cancel" },
+        { status: 400 }
+      );
+    }
+
+    const txUsage = await findLoanTxUsage(txHash);
+    if (txUsage) {
+      if (txUsage.loanId === id && txUsage.column === expectedColumn) {
+        const existing = await getLoan(id);
+        if (existing) return NextResponse.json(existing, { status: 200 });
+      }
+      return NextResponse.json(
+        { error: `txHash already used by loan sync (${txUsage.loanId}:${txUsage.column})` },
+        { status: 409 }
       );
     }
 
@@ -76,13 +118,13 @@ export async function PATCH(
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error }, { status: 400 });
         }
-        loan = fundLoan(id, lender, txHash);
+        loan = await fundLoan(id, lender, txHash);
         break;
       }
 
       case "repay": {
         // Verify the caller is the borrower
-        const loanToRepay = getLoan(id);
+        const loanToRepay = await getLoan(id);
         if (!loanToRepay) {
           return NextResponse.json(
             { error: "Loan not found" },
@@ -104,13 +146,13 @@ export async function PATCH(
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error }, { status: 400 });
         }
-        loan = repayLoan(id, txHash);
+        loan = await repayLoan(id, txHash);
         break;
       }
 
       case "liquidate": {
         // Verify the caller is the lender
-        const loanToLiquidate = getLoan(id);
+        const loanToLiquidate = await getLoan(id);
         if (!loanToLiquidate) {
           return NextResponse.json(
             { error: "Loan not found" },
@@ -132,13 +174,13 @@ export async function PATCH(
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error }, { status: 400 });
         }
-        loan = liquidateLoan(id, txHash);
+        loan = await liquidateLoan(id, txHash);
         break;
       }
 
       case "cancel": {
         // Verify the caller is the borrower
-        const existing = getLoan(id);
+        const existing = await getLoan(id);
         if (!existing) {
           return NextResponse.json(
             { error: "Loan not found" },
@@ -160,7 +202,7 @@ export async function PATCH(
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error }, { status: 400 });
         }
-        loan = cancelLoan(id);
+        loan = await cancelLoan(id, txHash);
         break;
       }
 

@@ -3,6 +3,7 @@ import { createBattle, getBattlesForOwner } from "@/lib/battle-engine";
 import { getShardById } from "@/lib/shard-engine";
 import { BattleMode } from "@siphon/core";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
+import { dbRun } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
   if (mismatch) return mismatch;
 
   try {
-    const battles = getBattlesForOwner(ownerId);
+    const battles = await getBattlesForOwner(ownerId);
     return NextResponse.json(battles);
   } catch (error) {
     return NextResponse.json(
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     const mismatch = ensureAddressMatch(auth.address, challengerOwnerId, "challengerOwnerId");
     if (mismatch) return mismatch;
 
-    const challengerShard = getShardById(challengerShardId);
+    const challengerShard = await getShardById(challengerShardId);
     if (!challengerShard || challengerShard.ownerId?.toLowerCase() !== auth.address) {
       return NextResponse.json(
         { error: "Authenticated user does not own challenger shard" },
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const battle = createBattle(
+    const battle = await createBattle(
       challengerShardId,
       defenderShardId,
       mode as BattleMode,
@@ -93,9 +94,8 @@ export async function POST(request: NextRequest) {
 
     // Store escrow tx hash if provided
     if (escrowTxHash && stake > 0) {
-      const { getDb } = await import("@/lib/db");
-      const db = getDb();
-      db.prepare("UPDATE battles SET escrow_tx_hash = ? WHERE id = ?").run(
+      await dbRun(
+        "UPDATE battles SET escrow_tx_hash = ? WHERE id = ?",
         escrowTxHash,
         battle.id
       );

@@ -47,6 +47,7 @@ Thumbs.db
 
 # Siphon local data
 .siphon/
+siphon.db
 
 # Rust lock (Cargo)
 # Keep Cargo.lock for binaries, ignore for libraries
@@ -64,6 +65,9 @@ apps/desktop/dist/
 
 # GitHub Actions
 .github/workflows/*.bak
+
+# Experimental / scratch
+pixel-agents/
 
 # Temporary files
 *.tmp

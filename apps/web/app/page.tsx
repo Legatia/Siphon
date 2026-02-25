@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +34,7 @@ import {
 // Config
 // ---------------------------------------------------------------------------
 
-const APP_URL = "https://app.siphon.gg";
+const APP_URL = "https://siphon.legatia.solutions";
 const APP_LIVE = false; // flip to true when the app subdomain is live
 
 // ---------------------------------------------------------------------------
@@ -137,6 +138,59 @@ const FAQ_ITEMS = [
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+function WaitlistForm({ source = "hero" }: { source?: string }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), source }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus("error");
+        setMessage(data.error || "Something went wrong");
+        return;
+      }
+      setStatus("success");
+      setMessage(data.message || "You're on the list");
+    } catch {
+      setStatus("error");
+      setMessage("Network error — try again");
+    }
+  }
+
+  if (status === "success") {
+    return (
+      <p className="text-siphon-teal text-sm font-medium">{message}</p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto">
+      <input
+        type="email"
+        required
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="flex-1 w-full sm:w-auto rounded-lg border border-siphon-teal/20 bg-abyss px-4 py-2.5 text-sm text-foam placeholder:text-ghost/50 outline-none focus:border-siphon-teal/50 transition-colors"
+      />
+      <Button type="submit" size="sm" disabled={status === "loading"} className="w-full sm:w-auto">
+        {status === "loading" ? "Joining..." : "Join Waitlist"}
+      </Button>
+      {status === "error" && <p className="text-red-400 text-xs w-full text-center">{message}</p>}
+    </form>
+  );
+}
 
 export default function LandingPage() {
   return (
@@ -242,6 +296,12 @@ export default function LandingPage() {
             <p className="text-ghost/60 text-xs pt-2">
               Testnet alpha. Mainnet launch on the horizon.
             </p>
+
+            {/* Waitlist */}
+            <div className="pt-4">
+              <p className="text-ghost text-xs mb-2">Get notified when we launch</p>
+              <WaitlistForm source="hero" />
+            </div>
           </div>
         </div>
 
@@ -457,6 +517,10 @@ export default function LandingPage() {
                 Get the Desktop App
               </Button>
             </Link>
+          </div>
+          <div className="pt-4">
+            <p className="text-ghost text-xs mb-2">Or join the waitlist for launch updates</p>
+            <WaitlistForm source="footer_cta" />
           </div>
         </div>
       </section>

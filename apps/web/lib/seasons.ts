@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 
 type Season = {
   id: string;
@@ -19,12 +19,12 @@ function seasonWindow(now: Date) {
   return { seasonId, startsAt, endsAt };
 }
 
-export function getActiveSeason(): Season {
-  const db = getDb();
+export async function getActiveSeason(): Promise<Season> {
   const { seasonId, startsAt, endsAt } = seasonWindow(new Date());
-  const existing = db
-    .prepare("SELECT * FROM ranked_seasons WHERE id = ?")
-    .get(seasonId) as Season | undefined;
+  const existing = await dbGet<Season>(
+    "SELECT * FROM ranked_seasons WHERE id = ?",
+    seasonId
+  );
   if (existing) return existing;
 
   const season: Season = {
@@ -35,14 +35,20 @@ export function getActiveSeason(): Season {
     status: "active",
     created_at: Date.now(),
   };
-  db.prepare(
+  await dbRun(
     `INSERT INTO ranked_seasons (id, name, starts_at, ends_at, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(season.id, season.name, season.starts_at, season.ends_at, season.status, season.created_at);
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    season.id,
+    season.name,
+    season.starts_at,
+    season.ends_at,
+    season.status,
+    season.created_at
+  );
   return season;
 }
 
-export function recordSeasonResult(params: {
+export async function recordSeasonResult(params: {
   ownerId: string;
   points: number;
   win: boolean;
@@ -50,28 +56,26 @@ export function recordSeasonResult(params: {
   draw: boolean;
   eloDelta: number;
 }) {
-  const db = getDb();
-  const season = getActiveSeason();
+  const season = await getActiveSeason();
   const now = Date.now();
-  const stat = db
-    .prepare("SELECT * FROM season_stats WHERE season_id = ? AND owner_id = ?")
-    .get(season.id, params.ownerId) as
-    | {
-        id: string;
-        wins: number;
-        losses: number;
-        draws: number;
-        points: number;
-        elo_delta: number;
-      }
-    | undefined;
+  const stat = await dbGet<{
+    id: string;
+    wins: number;
+    losses: number;
+    draws: number;
+    points: number;
+    elo_delta: number;
+  }>(
+    "SELECT * FROM season_stats WHERE season_id = ? AND owner_id = ?",
+    season.id,
+    params.ownerId
+  );
 
   if (!stat) {
-    db.prepare(
+    await dbRun(
       `INSERT INTO season_stats
        (id, season_id, owner_id, wins, losses, draws, points, elo_delta, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       crypto.randomUUID(),
       season.id,
       params.ownerId,
@@ -85,11 +89,10 @@ export function recordSeasonResult(params: {
     return;
   }
 
-  db.prepare(
+  await dbRun(
     `UPDATE season_stats
      SET wins = ?, losses = ?, draws = ?, points = ?, elo_delta = ?, updated_at = ?
-     WHERE id = ?`
-  ).run(
+     WHERE id = ?`,
     stat.wins + (params.win ? 1 : 0),
     stat.losses + (params.loss ? 1 : 0),
     stat.draws + (params.draw ? 1 : 0),
@@ -99,4 +102,3 @@ export function recordSeasonResult(params: {
     stat.id
   );
 }
-

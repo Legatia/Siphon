@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
   if (mismatch) return mismatch;
 
   try {
-    attemptQueueMatches();
-    const entries = getQueueEntries(ownerId);
+    await attemptQueueMatches();
+    const entries = await getQueueEntries(ownerId);
     return NextResponse.json(entries);
   } catch (error) {
     return NextResponse.json(
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shard = getShardById(shardId);
+    const shard = await getShardById(shardId);
     if (!shard) {
       return NextResponse.json(
         { error: "Shard not found" },
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const entry = joinQueue(
+    const entry = await joinQueue(
       shardId,
       ownerId,
       mode as BattleMode,
@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const removed = leaveQueueForOwner(entryId, auth.address);
+    const removed = await leaveQueueForOwner(entryId, auth.address);
     if (!removed) {
       return NextResponse.json(
         { error: "Queue entry not found or not owned by current user" },

@@ -33,6 +33,9 @@ contract SwarmRegistry {
         // Verify caller owns all shards
         for (uint256 i = 0; i < shardIds.length; i++) {
             require(registry.getOwner(shardIds[i]) == msg.sender, "Not shard owner");
+            for (uint256 j = i + 1; j < shardIds.length; j++) {
+                require(shardIds[i] != shardIds[j], "Duplicate shard");
+            }
         }
 
         swarms[swarmId].owner = msg.sender;

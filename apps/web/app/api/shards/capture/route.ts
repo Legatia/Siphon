@@ -3,8 +3,9 @@ import { getShardById, captureShard } from "@/lib/shard-engine";
 import { generateChallenge, evaluateAnswer } from "@siphon/core";
 import { canOwnMoreShards } from "@/lib/subscription-check";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
-import { getDb } from "@/lib/db";
+import { dbRun, dbGet } from "@/lib/db";
 import { evaluateAchievements } from "@/lib/achievements";
+import { logActivationEvent } from "@/lib/activation-analytics";
 
 export async function POST(request: NextRequest) {
   const auth = await requireSessionAddress();
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
   if (mismatch) return mismatch;
 
-  const shard = getShardById(shardId);
+  const shard = await getShardById(shardId);
   if (!shard) {
     return NextResponse.json({ error: "Shard not found" }, { status: 404 });
   }
@@ -30,15 +31,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Check ownership limit before generating challenge
-  const ownershipCheck = canOwnMoreShards(ownerId);
+  const ownershipCheck = await canOwnMoreShards(ownerId);
   if (!ownershipCheck.allowed) {
     return NextResponse.json(
       { error: ownershipCheck.reason },
       { status: 403 }
     );
   }
-
-  const db = getDb();
 
   // If no answer provided, generate and return a new challenge session
   if (!answer) {
@@ -47,10 +46,11 @@ export async function POST(request: NextRequest) {
     const now = Date.now();
     const expiresAt = now + challenge.timeLimitMs;
 
-    db.prepare(
+    await dbRun(
       `INSERT INTO capture_sessions (id, shard_id, owner_id, challenge_json, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, shardId, ownerId, JSON.stringify(challenge), expiresAt, now);
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      id, shardId, ownerId, JSON.stringify(challenge), expiresAt, now
+    );
 
     const { expectedAnswer, ...safeChallenge } = challenge;
     return NextResponse.json({ challenge: safeChallenge, challengeId: id });
@@ -63,15 +63,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const session = db
-    .prepare(
-      `SELECT challenge_json, expires_at
-       FROM capture_sessions
-       WHERE id = ? AND shard_id = ? AND owner_id = ?`
-    )
-    .get(challengeId, shardId, ownerId) as
-    | { challenge_json: string; expires_at: number }
-    | undefined;
+  const session = await dbGet<{ challenge_json: string; expires_at: number }>(
+    `SELECT challenge_json, expires_at
+     FROM capture_sessions
+     WHERE id = ? AND shard_id = ? AND owner_id = ?`,
+    challengeId, shardId, ownerId
+  );
 
   if (!session) {
     return NextResponse.json(
@@ -81,7 +78,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (Date.now() > session.expires_at) {
-    db.prepare("DELETE FROM capture_sessions WHERE id = ?").run(challengeId);
+    await dbRun("DELETE FROM capture_sessions WHERE id = ?", challengeId);
     return NextResponse.json(
       { error: "Time's up! The Shard drifted away." },
       { status: 400 }
@@ -92,11 +89,11 @@ export async function POST(request: NextRequest) {
   const challenge = JSON.parse(session.challenge_json);
   const result = evaluateAnswer(challenge, answer);
 
-  db.prepare("DELETE FROM capture_sessions WHERE id = ?").run(challengeId);
+  await dbRun("DELETE FROM capture_sessions WHERE id = ?", challengeId);
 
   if (result.success) {
     // Re-check ownership limit (could have changed between challenge and answer)
-    const finalCheck = canOwnMoreShards(ownerId);
+    const finalCheck = await canOwnMoreShards(ownerId);
     if (!finalCheck.allowed) {
       return NextResponse.json(
         { error: finalCheck.reason },
@@ -104,8 +101,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const captured = captureShard(shardId, ownerId);
-    evaluateAchievements(ownerId.toLowerCase());
+    const captured = await captureShard(shardId, ownerId);
+    await evaluateAchievements(ownerId.toLowerCase());
+    await logActivationEvent({
+      ownerId,
+      eventType: "captured",
+      source: "api:shards/capture",
+      entityId: shardId,
+      uniqueKey: `${ownerId.toLowerCase()}:captured:${shardId}`,
+      metadata: { challengeType: challenge.type, score: result.score },
+    });
 
     return NextResponse.json({
       success: true,

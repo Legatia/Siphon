@@ -1,4 +1,4 @@
-import { getDb, rowToShard } from "./db";
+import { getDb, rowToShard, dbGet, dbAll, dbRun } from "./db";
 import { LoanState } from "@siphon/core";
 import type { Loan, Shard, ShardAttestation, LoanListing } from "@siphon/core";
 import crypto from "crypto";
@@ -14,15 +14,13 @@ export interface CreateLoanParams {
   txHash?: string;
 }
 
-export function createLoan(params: CreateLoanParams): Loan {
-  const db = getDb();
+export async function createLoan(params: CreateLoanParams): Promise<Loan> {
   const id = params.id ?? crypto.randomUUID();
   const now = Date.now();
 
-  db.prepare(
+  await dbRun(
     `INSERT INTO loans (id, shard_id, borrower, principal, interest_bps, duration, collateral_value, state, created_at, tx_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     params.shardId,
     params.borrower,
@@ -35,73 +33,116 @@ export function createLoan(params: CreateLoanParams): Loan {
     params.txHash ?? null
   );
 
-  return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(id));
+  return rowToLoan(await dbGet("SELECT * FROM loans WHERE id = ?", id));
 }
 
-export function fundLoan(loanId: string, lender: string, txHash?: string): Loan {
-  const db = getDb();
+export async function fundLoan(loanId: string, lender: string, txHash?: string): Promise<Loan> {
   const now = Date.now();
 
-  db.prepare(
-    `UPDATE loans SET lender = ?, funded_at = ?, state = ?, fund_tx_hash = ? WHERE id = ? AND state = ?`
-  ).run(lender, now, LoanState.Funded, txHash ?? null, loanId, LoanState.Listed);
+  await dbRun(
+    `UPDATE loans SET lender = ?, funded_at = ?, state = ?, fund_tx_hash = ? WHERE id = ? AND state = ?`,
+    lender,
+    now,
+    LoanState.Funded,
+    txHash ?? null,
+    loanId,
+    LoanState.Listed
+  );
 
-  return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId));
+  return rowToLoan(await dbGet("SELECT * FROM loans WHERE id = ?", loanId));
 }
 
-export function repayLoan(loanId: string, txHash?: string): Loan {
-  const db = getDb();
+export async function repayLoan(loanId: string, txHash?: string): Promise<Loan> {
+  await dbRun(
+    `UPDATE loans SET state = ?, repay_tx_hash = ? WHERE id = ? AND state = ?`,
+    LoanState.Repaid,
+    txHash ?? null,
+    loanId,
+    LoanState.Funded
+  );
 
-  db.prepare(
-    `UPDATE loans SET state = ?, repay_tx_hash = ? WHERE id = ? AND state = ?`
-  ).run(LoanState.Repaid, txHash ?? null, loanId, LoanState.Funded);
-
-  return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId));
+  return rowToLoan(await dbGet("SELECT * FROM loans WHERE id = ?", loanId));
 }
 
-export function liquidateLoan(loanId: string, txHash?: string): Loan {
-  const db = getDb();
-
+export async function liquidateLoan(loanId: string, txHash?: string): Promise<Loan> {
   // Get loan before updating to know the lender and shard
-  const existing = db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId) as any;
+  const existing = await dbGet<any>("SELECT * FROM loans WHERE id = ?", loanId);
 
-  db.prepare(
-    `UPDATE loans SET state = ?, liquidate_tx_hash = ? WHERE id = ? AND state = ?`
-  ).run(LoanState.Liquidated, txHash ?? null, loanId, LoanState.Funded);
+  await dbRun(
+    `UPDATE loans SET state = ?, liquidate_tx_hash = ? WHERE id = ? AND state = ?`,
+    LoanState.Liquidated,
+    txHash ?? null,
+    loanId,
+    LoanState.Funded
+  );
 
   // On-chain, seize() transfers shard ownership to the lender — mirror in DB
   if (existing?.lender && existing?.shard_id) {
-    db.prepare("UPDATE shards SET owner_id = ? WHERE id = ?").run(
+    await dbRun(
+      "UPDATE shards SET owner_id = ? WHERE id = ?",
       existing.lender,
       existing.shard_id
     );
   }
 
-  return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId));
+  return rowToLoan(await dbGet("SELECT * FROM loans WHERE id = ?", loanId));
 }
 
-export function cancelLoan(loanId: string): Loan {
-  const db = getDb();
+export async function cancelLoan(loanId: string, txHash?: string): Promise<Loan> {
+  await dbRun(
+    `UPDATE loans SET state = ?, cancel_tx_hash = ? WHERE id = ? AND state = ?`,
+    LoanState.Cancelled,
+    txHash ?? null,
+    loanId,
+    LoanState.Listed
+  );
 
-  db.prepare(
-    `UPDATE loans SET state = ? WHERE id = ? AND state = ?`
-  ).run(LoanState.Cancelled, loanId, LoanState.Listed);
-
-  return rowToLoan(db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId));
+  return rowToLoan(await dbGet("SELECT * FROM loans WHERE id = ?", loanId));
 }
 
-export function getLoan(loanId: string): Loan | null {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM loans WHERE id = ?").get(loanId);
+export async function findLoanTxUsage(txHash: string): Promise<{ loanId: string; column: string } | null> {
+  const row = await dbGet<{
+    id: string;
+    tx_hash: string | null;
+    fund_tx_hash: string | null;
+    repay_tx_hash: string | null;
+    liquidate_tx_hash: string | null;
+    cancel_tx_hash: string | null;
+  }>(
+    `SELECT id, tx_hash, fund_tx_hash, repay_tx_hash, liquidate_tx_hash, cancel_tx_hash
+       FROM loans
+      WHERE tx_hash = ?
+         OR fund_tx_hash = ?
+         OR repay_tx_hash = ?
+         OR liquidate_tx_hash = ?
+         OR cancel_tx_hash = ?
+      LIMIT 1`,
+    txHash,
+    txHash,
+    txHash,
+    txHash,
+    txHash
+  );
+
+  if (!row) return null;
+  if (row.tx_hash === txHash) return { loanId: row.id, column: "tx_hash" };
+  if (row.fund_tx_hash === txHash) return { loanId: row.id, column: "fund_tx_hash" };
+  if (row.repay_tx_hash === txHash) return { loanId: row.id, column: "repay_tx_hash" };
+  if (row.liquidate_tx_hash === txHash) return { loanId: row.id, column: "liquidate_tx_hash" };
+  if (row.cancel_tx_hash === txHash) return { loanId: row.id, column: "cancel_tx_hash" };
+  return null;
+}
+
+export async function getLoan(loanId: string): Promise<Loan | null> {
+  const row = await dbGet("SELECT * FROM loans WHERE id = ?", loanId);
   return row ? rowToLoan(row) : null;
 }
 
-export function getLoans(filters?: {
+export async function getLoans(filters?: {
   borrower?: string;
   lender?: string;
   state?: LoanState;
-}): Loan[] {
-  const db = getDb();
+}): Promise<Loan[]> {
   let sql = "SELECT * FROM loans WHERE 1=1";
   const params: any[] = [];
 
@@ -120,18 +161,20 @@ export function getLoans(filters?: {
 
   sql += " ORDER BY created_at DESC";
 
-  return db.prepare(sql).all(...params).map(rowToLoan);
+  const rows = await dbAll(sql, ...params);
+  return rows.map(rowToLoan);
 }
 
-export function getLoanListings(): LoanListing[] {
-  const db = getDb();
-  const loans = db
-    .prepare("SELECT * FROM loans WHERE state = ? ORDER BY created_at DESC")
-    .all(LoanState.Listed)
-    .map(rowToLoan);
+export async function getLoanListings(): Promise<LoanListing[]> {
+  const loanRows = await dbAll(
+    "SELECT * FROM loans WHERE state = ? ORDER BY created_at DESC",
+    LoanState.Listed
+  );
+  const loans = loanRows.map(rowToLoan);
 
-  return loans.map((loan) => {
-    const shardRow = db.prepare("SELECT * FROM shards WHERE id = ?").get(loan.shardId);
+  const results: LoanListing[] = [];
+  for (const loan of loans) {
+    const shardRow = await dbGet("SELECT * FROM shards WHERE id = ?", loan.shardId);
     const shard: Shard = shardRow ? rowToShard(shardRow) : ({} as Shard);
 
     const stats = shard.stats || { intelligence: 0, creativity: 0, precision: 0, resilience: 0, charisma: 0 };
@@ -158,19 +201,22 @@ export function getLoanListings(): LoanListing[] {
       ? now >= loan.fundedAt + loan.duration * 1000 + 86400000
       : false;
 
-    return { loan, shard, attestation, repaymentAmount, isExpired, isLiquidatable };
-  });
+    results.push({ loan, shard, attestation, repaymentAmount, isExpired, isLiquidatable });
+  }
+
+  return results;
 }
 
-export function getActiveLoans(): LoanListing[] {
-  const db = getDb();
-  const loans = db
-    .prepare("SELECT * FROM loans WHERE state = ? ORDER BY created_at DESC")
-    .all(LoanState.Funded)
-    .map(rowToLoan);
+export async function getActiveLoans(): Promise<LoanListing[]> {
+  const loanRows = await dbAll(
+    "SELECT * FROM loans WHERE state = ? ORDER BY created_at DESC",
+    LoanState.Funded
+  );
+  const loans = loanRows.map(rowToLoan);
 
-  return loans.map((loan) => {
-    const shardRow = db.prepare("SELECT * FROM shards WHERE id = ?").get(loan.shardId);
+  const results: LoanListing[] = [];
+  for (const loan of loans) {
+    const shardRow = await dbGet("SELECT * FROM shards WHERE id = ?", loan.shardId);
     const shard: Shard = shardRow ? rowToShard(shardRow) : ({} as Shard);
 
     const stats = shard.stats || { intelligence: 0, creativity: 0, precision: 0, resilience: 0, charisma: 0 };
@@ -197,8 +243,10 @@ export function getActiveLoans(): LoanListing[] {
       ? now >= loan.fundedAt + loan.duration * 1000 + 86400000
       : false;
 
-    return { loan, shard, attestation, repaymentAmount, isExpired, isLiquidatable };
-  });
+    results.push({ loan, shard, attestation, repaymentAmount, isExpired, isLiquidatable });
+  }
+
+  return results;
 }
 
 function rowToLoan(row: any): Loan {

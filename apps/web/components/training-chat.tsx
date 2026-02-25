@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Shard } from "@siphon/core";
-import { getShardTypeName, SHARD_TYPE_COLORS, SHARD_TYPE_NAMES } from "@siphon/core";
+import { getShardTypeName, SHARD_TYPE_COLORS } from "@siphon/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, AlertTriangle } from "lucide-react";
+import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { playSfx, triggerCelebration, updateOnboardingProgress } from "@/lib/game-feedback";
 
@@ -133,21 +132,29 @@ export function TrainingChat({
   };
 
   return (
-    <div className="flex flex-col h-[500px] rounded-xl border border-siphon-teal/10 bg-midnight/50 overflow-hidden">
+    <div className="relative flex h-[500px] flex-col overflow-hidden border border-siphon-teal/30 bg-[#071123]/90">
+      <div className="pointer-events-none absolute inset-0 opacity-25"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(106,245,214,0.06) 1px, transparent 1px), linear-gradient(0deg, rgba(106,245,214,0.06) 1px, transparent 1px)",
+          backgroundSize: "16px 16px",
+        }}
+      />
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-siphon-teal/10">
+      <div className="relative flex items-center gap-3 border-b border-siphon-teal/20 p-4">
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+          className="h-8 w-8 flex items-center justify-center text-lg border"
           style={{
             backgroundColor: color + "20",
             color: color,
             boxShadow: `0 0 10px ${color}30`,
+            borderColor: `${color}70`,
           }}
         >
           {["◈", "◇", "▣", "✦", "⬡", "⚖", "⛨", "◐"][shard.type] ?? "◈"}
         </div>
         <div>
-          <h3 className="font-semibold text-foam text-sm">{shard.name}</h3>
+          <h3 className="font-semibold text-foam">{shard.name}</h3>
           <p className="text-xs text-ghost">
             {typeName} &middot; Level {shard.level}
           </p>
@@ -161,9 +168,9 @@ export function TrainingChat({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="relative flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <div className="text-center text-ghost text-sm py-8">
+          <div className="py-8 text-center text-ghost">
             <p>Begin training with {shard.name}.</p>
             <p className="text-xs mt-1">
               Each interaction earns XP and strengthens your bond.
@@ -171,21 +178,22 @@ export function TrainingChat({
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex reveal-up ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            style={{ animationDelay: `${Math.min(idx * 28, 220)}ms` }}
           >
             <div
-              className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
+              className={`max-w-[80%] border px-4 py-2.5 ${
                 msg.role === "user"
-                  ? "bg-siphon-teal/20 text-foam border border-siphon-teal/20"
-                  : "bg-abyss/80 text-foam border border-siphon-teal/5"
+                  ? "border-siphon-teal/35 bg-siphon-teal/14 text-foam"
+                  : "border-ghost/15 bg-[#061020] text-foam"
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
               {msg.xp_gained ? (
-                <span className="text-xs text-siphon-teal mt-1 block">
+                <span className="mt-1 inline-block border border-siphon-teal/35 bg-siphon-teal/12 px-2 py-0.5 text-xs text-siphon-teal animate-[hud-flicker_2.5s_steps(1)_infinite]">
                   +{msg.xp_gained} XP
                 </span>
               ) : null}
@@ -195,7 +203,7 @@ export function TrainingChat({
 
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-abyss/80 rounded-xl px-4 py-2.5 text-sm border border-siphon-teal/5">
+            <div className="border border-ghost/15 bg-[#061020] px-4 py-2.5">
               <span className="inline-flex gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-siphon-teal animate-bounce" style={{ animationDelay: "0ms" }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-siphon-teal animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -207,7 +215,7 @@ export function TrainingChat({
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-siphon-teal/10">
+      <div className="relative border-t border-siphon-teal/20 p-4">
         <div className="flex gap-2">
           <Input
             placeholder={`Say something to ${shard.name}...`}

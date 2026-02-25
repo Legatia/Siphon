@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Sparkles, Shield, Loader2, Share2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Shield, Loader2, Share2, Target } from "lucide-react";
 import { useAccount } from "wagmi";
 import {
   ERC8004_IDENTITY_ABI,
@@ -20,6 +20,7 @@ import {
   publicClient,
 } from "@/lib/contracts";
 import { ShardType, Specialization } from "@siphon/core";
+import Link from "next/link";
 
 type BadgeVariant = "oracle" | "cipher" | "scribe" | "muse" | "architect" | "advocate" | "sentinel" | "mirror";
 
@@ -177,22 +178,23 @@ export default function ShardDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Shard Info */}
         <div className="space-y-4">
-          <Card>
+          <Card className="border-siphon-teal/30 bg-[#071123]/90 reveal-up">
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div
-                  className="w-16 h-16 rounded-xl flex items-center justify-center text-3xl"
+                  className="w-16 h-16 border flex items-center justify-center text-3xl"
                   style={{
                     backgroundColor: color + "20",
                     color: color,
                     boxShadow: `0 0 25px ${color}30`,
+                    borderColor: `${color}70`,
                   }}
                 >
                   {typeIconMap[shard.type] ?? "\u25C8"}
                 </div>
                 <div>
-                  <CardTitle>{shard.name}</CardTitle>
-                  <p className="text-sm text-ghost">{shard.species}</p>
+                  <CardTitle className="pixel-title text-[11px]">{shard.name}</CardTitle>
+                  <p className="text-ghost">{shard.species}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <Badge variant={typeVariantMap[shard.type]}>{typeName}</Badge>
                     {shard.specialization !== Specialization.None && (
@@ -214,7 +216,7 @@ export default function ShardDetailPage() {
               </div>
 
               {(shard.decayFactor ?? 1.0) < 0.95 && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs">
+                <div className="bg-red-500/10 border border-red-500/20 p-3 text-xs">
                   <div className="text-red-400 font-medium">Decay Active ({Math.floor((shard.decayFactor ?? 1) * 100)}%)</div>
                   <div className="text-ghost mt-1">Last interaction: {daysSinceInteraction} days ago. Train to restore stats.</div>
                 </div>
@@ -222,7 +224,7 @@ export default function ShardDetailPage() {
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {(["intelligence", "creativity", "precision", "resilience", "charisma"] as const).map((stat) => (
-                  <div key={stat} className="bg-abyss/60 rounded-lg p-3">
+                  <div key={stat} className="bg-abyss/60 border border-siphon-teal/10 p-3">
                     <div className="text-ghost text-xs capitalize">{stat}</div>
                     <div className="font-mono text-foam text-lg">
                       {effectiveStats[stat]}
@@ -232,7 +234,7 @@ export default function ShardDetailPage() {
                     </div>
                   </div>
                 ))}
-                <div className="bg-abyss/60 rounded-lg p-3">
+                <div className="bg-abyss/60 border border-siphon-teal/10 p-3">
                   <div className="text-ghost text-xs">Elo Rating</div>
                   <div className="font-mono text-foam text-lg">{shard.eloRating ?? 1200}</div>
                 </div>
@@ -252,7 +254,7 @@ export default function ShardDetailPage() {
                   </Button>
                 )}
                 {shard.tokenId && (
-                  <div className="text-xs text-ghost font-mono bg-abyss/60 rounded-lg p-3">
+                  <div className="text-xs text-ghost font-mono bg-abyss/60 border border-siphon-teal/10 p-3">
                     Agent Token: {shard.tokenId}
                   </div>
                 )}
@@ -282,15 +284,31 @@ export default function ShardDetailPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 reveal-up" style={{ animationDelay: "90ms" }}>
+          <Card className="mb-4 border-siphon-teal/25 bg-[#071123]/80">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-siphon-teal">Real Outcome</p>
+                <p className="text-ghost mt-1">
+                  This shard is ready for live tasks. Use bounty board to generate economic output.
+                </p>
+              </div>
+              <Link href="/bounties">
+                <Button size="sm">
+                  <Target className="h-4 w-4 mr-2" />
+                  Claim Bounty
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
           <TrainingChat shard={shard} onXpGain={(updated) => setShard(updated)} />
         </div>
       </div>
 
       <Dialog open={specDialogOpen} onOpenChange={setSpecDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md border-siphon-teal/30 bg-[#071123]/95">
           <DialogHeader>
-            <DialogTitle>Choose Specialization</DialogTitle>
+            <DialogTitle className="pixel-title text-[11px]">Choose Specialization</DialogTitle>
             <DialogDescription>
               Your {typeName} Shard has reached level {PROTOCOL_CONSTANTS.SPECIALIZATION_LEVEL}. Choose a branch. This is permanent.
             </DialogDescription>
@@ -299,7 +317,7 @@ export default function ShardDetailPage() {
             {branches.map((branch, idx) => (
               <Card
                 key={branch}
-                className="cursor-pointer hover:border-siphon-teal/30 transition-colors"
+                className="cursor-pointer border-siphon-teal/20 bg-[#061020] hover:border-siphon-teal/40 transition-colors"
                 onClick={() => handleSpecialize(idx as 0 | 1)}
               >
                 <CardContent className="p-4 text-center">

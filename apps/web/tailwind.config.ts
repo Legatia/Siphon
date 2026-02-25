@@ -10,20 +10,25 @@ const config: Config = {
   theme: {
   	extend: {
   		colors: {
-  			abyss: '#0f0f1a',
-  			midnight: '#1a1a2e',
-  			'siphon-teal': '#00d4aa',
-  			'deep-violet': '#7c3aed',
-  			foam: '#ffffff',
-  			ghost: '#94a3b8',
-  			ember: '#f59e0b',
-  			current: '#3b82f6'
+  			abyss: '#10192a',
+  			midnight: '#12223b',
+  			'siphon-teal': '#6af5d6',
+  			'deep-violet': '#2dbfbc',
+  			foam: '#d5f4ff',
+  			ghost: '#7ca4bb',
+  			ember: '#ffd66b',
+  			current: '#ff8f70'
   		},
   		fontFamily: {
   			sans: [
-  				'Inter',
-  				'system-ui',
-  				'sans-serif'
+  				'VT323',
+  				'ui-monospace',
+  				'monospace'
+  			],
+  			display: [
+  				'Press Start 2P',
+  				'ui-monospace',
+  				'monospace'
   			],
   			mono: [
   				'JetBrains Mono',

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbGet, getDbRuntimeInfo } from "@/lib/db";
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
 
@@ -9,7 +9,7 @@ interface HealthCheck {
   status: "ok" | "degraded" | "down";
   timestamp: number;
   checks: {
-    database: { status: "ok" | "error"; latencyMs?: number; error?: string };
+    database: { status: "ok" | "error"; latencyMs?: number; error?: string; mode?: "remote" | "local"; url?: string };
     chain: { status: "ok" | "error"; blockNumber?: number; error?: string };
     llm: { status: "ok" | "unavailable" | "not_configured"; model?: string };
   };
@@ -29,12 +29,17 @@ export async function GET() {
   // 1. Database check
   try {
     const start = Date.now();
-    const db = getDb();
-    const row = db.prepare("SELECT COUNT(*) as count FROM shards").get() as { count: number };
+    await dbGet<{ count: number }>("SELECT COUNT(*) as count FROM shards");
+    const runtime = getDbRuntimeInfo();
     result.checks.database = {
       status: "ok",
       latencyMs: Date.now() - start,
+      mode: runtime.mode,
+      url: runtime.url,
     };
+    if (process.env.NODE_ENV === "production" && runtime.mode === "local") {
+      result.status = "degraded";
+    }
   } catch (err) {
     result.checks.database = {
       status: "error",

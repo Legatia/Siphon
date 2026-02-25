@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { dbRun, dbGet } from "@/lib/db";
 import type { CosmeticSlots } from "@siphon/core";
 import { ensureAddressMatch, requireSessionAddress } from "@/lib/session-auth";
 
@@ -39,12 +39,11 @@ export async function PUT(
       }
     }
 
-    const db = getDb();
-
     // Verify shard exists and belongs to the user
-    const shard = db
-      .prepare("SELECT id, owner_id FROM shards WHERE id = ?")
-      .get(shardId) as { id: string; owner_id: string } | undefined;
+    const shard = await dbGet<{ id: string; owner_id: string }>(
+      "SELECT id, owner_id FROM shards WHERE id = ?",
+      shardId
+    );
 
     if (!shard) {
       return NextResponse.json(
@@ -64,13 +63,12 @@ export async function PUT(
     for (const [slot, cosmeticId] of Object.entries(cosmeticSlots)) {
       if (cosmeticId === null) continue;
 
-      const owned = db
-        .prepare(
-          `SELECT ci.id FROM cosmetic_inventory ci
-           JOIN cosmetics c ON ci.cosmetic_id = c.id
-           WHERE ci.cosmetic_id = ? AND ci.owner_id = ? AND c.slot = ?`
-        )
-        .get(cosmeticId, ownerId, slot) as { id: string } | undefined;
+      const owned = await dbGet<{ id: string }>(
+        `SELECT ci.id FROM cosmetic_inventory ci
+         JOIN cosmetics c ON ci.cosmetic_id = c.id
+         WHERE ci.cosmetic_id = ? AND ci.owner_id = ? AND c.slot = ?`,
+        cosmeticId, ownerId, slot
+      );
 
       if (!owned) {
         return NextResponse.json(
@@ -90,9 +88,10 @@ export async function PUT(
       emblem: cosmeticSlots.emblem ?? null,
     };
 
-    db.prepare(
-      "UPDATE shards SET cosmetic_slots_json = ? WHERE id = ?"
-    ).run(JSON.stringify(fullSlots), shardId);
+    await dbRun(
+      "UPDATE shards SET cosmetic_slots_json = ? WHERE id = ?",
+      JSON.stringify(fullSlots), shardId
+    );
 
     return NextResponse.json({
       success: true,

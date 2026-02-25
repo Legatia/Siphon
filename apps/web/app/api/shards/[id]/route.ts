@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const shard = getShardById(id);
+  const shard = await getShardById(id);
   if (!shard) {
     return NextResponse.json({ error: "Shard not found" }, { status: 404 });
   }
@@ -32,7 +32,7 @@ export async function DELETE(
   const mismatch = ensureAddressMatch(auth.address, ownerId, "ownerId");
   if (mismatch) return mismatch;
 
-  const released = releaseToWild(id, ownerId);
+  const released = await releaseToWild(id, ownerId);
   if (!released) {
     return NextResponse.json({ error: "Cannot release shard" }, { status: 400 });
   }

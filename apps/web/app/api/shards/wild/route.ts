@@ -4,7 +4,7 @@ import { ensureWildShards } from "@/lib/shard-engine";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const shards = ensureWildShards(8);
+  const shards = await ensureWildShards(8);
   // Add drift positions for the map
   const wildShards = shards.map((shard, i) => ({
     ...shard,

@@ -2,50 +2,127 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --pixel-void: #090d16;
+  --pixel-abyss: #10192a;
+  --pixel-abyss-2: #12223b;
+  --pixel-cyan: #6af5d6;
+  --pixel-cyan-deep: #2dbfbc;
+  --pixel-gold: #ffd66b;
+  --pixel-coral: #ff8f70;
+  --pixel-ink: #02050d;
+  --pixel-text: #d5f4ff;
+  --pixel-mute: #7ca4bb;
+}
 
 @layer base {
   body {
-    @apply bg-abyss text-foam antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply text-foam antialiased;
+    font-family: 'VT323', ui-monospace, monospace;
+    font-size: 20px;
+    line-height: 1.15;
+    background:
+      radial-gradient(1200px 600px at 10% -20%, rgba(106, 245, 214, 0.14), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(45, 191, 188, 0.16), transparent 55%),
+      linear-gradient(180deg, var(--pixel-abyss-2) 0%, var(--pixel-abyss) 42%, var(--pixel-void) 100%);
+  }
+
+  h1, h2, h3, h4, h5, h6, .pixel-title {
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-abyss;
+    background: rgba(7, 12, 22, 0.9);
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-siphon-teal/20 rounded-full;
+    border-radius: 0;
+    border: 2px solid rgba(5, 10, 20, 0.95);
+    background:
+      linear-gradient(180deg, rgba(106, 245, 214, 0.9), rgba(45, 191, 188, 0.85));
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-siphon-teal/40;
+    background:
+      linear-gradient(180deg, rgba(118, 255, 236, 0.95), rgba(58, 219, 214, 0.9));
   }
 }
 
 @layer components {
+  .pixel-scanlines::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 35;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(210, 247, 255, 0.05) 0px,
+      rgba(210, 247, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    mix-blend-mode: soft-light;
+    opacity: 0.38;
+  }
+
+  .pixel-vignette::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 36;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(1, 5, 10, 0.55) 100%);
+  }
+
   .glow-border {
-    @apply border border-siphon-teal/20;
-    box-shadow: 0 0 15px rgba(0, 212, 170, 0.05), inset 0 0 15px rgba(0, 212, 170, 0.02);
+    border: 2px solid rgba(106, 245, 214, 0.45);
+    box-shadow:
+      0 0 0 1px rgba(5, 18, 26, 0.95) inset,
+      0 0 20px rgba(45, 191, 188, 0.25);
   }
 
   .glow-text {
-    text-shadow: 0 0 10px rgba(0, 212, 170, 0.5);
+    text-shadow:
+      0 0 8px rgba(106, 245, 214, 0.55),
+      0 0 18px rgba(45, 191, 188, 0.35);
   }
 
   .particle-bg {
-    background-image: radial-gradient(1px 1px at 20px 30px, rgba(0, 212, 170, 0.15), transparent),
-      radial-gradient(1px 1px at 40px 70px, rgba(124, 58, 237, 0.1), transparent),
-      radial-gradient(1px 1px at 50px 160px, rgba(0, 212, 170, 0.1), transparent),
-      radial-gradient(1px 1px at 90px 40px, rgba(124, 58, 237, 0.08), transparent),
-      radial-gradient(1px 1px at 130px 80px, rgba(0, 212, 170, 0.12), transparent),
-      radial-gradient(1px 1px at 160px 120px, rgba(245, 158, 11, 0.06), transparent);
-    background-size: 200px 200px;
+    background-image:
+      radial-gradient(2px 2px at 8px 12px, rgba(106, 245, 214, 0.18), transparent),
+      radial-gradient(1px 1px at 28px 38px, rgba(45, 191, 188, 0.16), transparent),
+      radial-gradient(1px 1px at 42px 72px, rgba(255, 214, 107, 0.11), transparent),
+      linear-gradient(90deg, rgba(42, 179, 196, 0.08) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(42, 179, 196, 0.08) 1px, transparent 1px);
+    background-size: 64px 64px, 64px 64px, 64px 64px, 24px 24px, 24px 24px;
+  }
+
+  .pixel-panel {
+    border-radius: 0;
+    border: 2px solid rgba(106, 245, 214, 0.35);
+    background:
+      linear-gradient(180deg, rgba(20, 37, 56, 0.92), rgba(10, 17, 29, 0.95));
+    box-shadow:
+      0 0 0 1px rgba(3, 8, 15, 0.95) inset,
+      0 8px 0 0 rgba(2, 6, 10, 0.95),
+      0 0 22px rgba(45, 191, 188, 0.2);
+  }
+
+  .pixel-chip {
+    border-radius: 0;
+    border: 1px solid rgba(106, 245, 214, 0.45);
+    background: rgba(11, 22, 37, 0.82);
+    color: var(--pixel-text);
   }
 }
 
@@ -57,5 +134,75 @@
   100% {
     opacity: 0;
     transform: translate(calc((var(--dx, 1) * 80px)), calc((var(--dy, -1) * 100px))) scale(0.2);
+  }
+}
+
+@keyframes hud-flicker {
+  0%, 100% { opacity: 1; }
+  48% { opacity: 0.92; }
+  49% { opacity: 0.85; }
+  50% { opacity: 0.95; }
+}
+
+@keyframes score-pulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(106,245,214,0)); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 0 8px rgba(106,245,214,0.5)); }
+}
+
+@keyframes danger-blink {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 70, 70, 0); }
+  50% { box-shadow: 0 0 16px rgba(255, 70, 70, 0.5); }
+}
+
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drift-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes panel-shimmer {
+  0% { background-position: -140% 0; }
+  100% { background-position: 220% 0; }
+}
+
+@keyframes route-content-in {
+  0% { opacity: 0; transform: translateY(12px) scale(0.995); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes route-flash {
+  0% { opacity: 0.25; background: radial-gradient(circle at 50% 60%, rgba(106, 245, 214, 0.25), transparent 60%); }
+  100% { opacity: 0; background: radial-gradient(circle at 50% 60%, rgba(106, 245, 214, 0), transparent 70%); }
+}
+
+@keyframes sfx-pulse {
+  0% { opacity: 0.55; transform: scale(0.97); }
+  100% { opacity: 0; transform: scale(1.04); }
+}
+
+@keyframes cinematic-fade {
+  0% { opacity: 0; transform: scale(0.98); }
+  12% { opacity: 1; transform: scale(1); }
+  88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
+@layer utilities {
+  .reveal-up {
+    animation: fade-up 420ms ease-out both;
+  }
+
+  .float-gentle {
+    animation: drift-float 3.5s ease-in-out infinite;
+  }
+
+  .shimmer-line {
+    background-image: linear-gradient(120deg, transparent 20%, rgba(106, 245, 214, 0.28) 50%, transparent 80%);
+    background-size: 220% 100%;
+    animation: panel-shimmer 2.2s linear infinite;
   }
 }

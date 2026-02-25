@@ -86,6 +86,9 @@ npm install
 # Copy environment config
 cp .env.example .env.local
 # Fill in your API keys and contract addresses
+# Core demo scope: keep lending disabled
+# NEXT_PUBLIC_ENABLE_LENDING=false
+# ENABLE_LENDING=false
 # Optional for production rate limiting:
 # KV_REST_API_URL=...
 # KV_REST_API_TOKEN=...
@@ -110,6 +113,13 @@ forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast
 
 # The script prints all contract addresses — paste them into .env.local
 ```
+
+### Database
+
+The web app uses `@libsql/client` for SQLite — works locally and with [Turso](https://turso.tech) in production.
+
+- **Local dev**: leave `TURSO_DB_URL` empty → uses `file:./siphon.db` automatically
+- **Production**: set `TURSO_DB_URL` and `TURSO_AUTH_TOKEN` for a remote Turso database
 
 ### Keeper Node
 
@@ -138,14 +148,20 @@ curl -X POST http://localhost:3001/api/attest-all \
 
 | Route | Description |
 |-------|-------------|
-| `/` | Dashboard — owned shards, quick actions |
+| `/` | Landing page + waitlist |
+| `/dashboard` | Owned shards, quick actions |
 | `/drift` | Explore wild shards, capture challenges |
 | `/shelter` | Community shard repository |
 | `/battle` | 4 battle modes (Debate, Solve, Riddle, Creative) |
 | `/fusion` | Combine two shards into a new one |
 | `/loans` | Borrow ETH against shards / Lend to borrowers |
-| `/marketplace` | Cosmetic items marketplace |
+| `/marketplace` | Shard marketplace + cosmetic items |
 | `/bounties` | Post and claim ETH-escrowed task bounties |
+| `/insights` | Activation analytics dashboard |
+| `/leaderboards` | Global + seasonal leaderboards |
+| `/seasons` | Season schedule and rewards |
+| `/achievements` | Badge and milestone tracking |
+| `/spectate` | Watch live battles |
 | `/download` | Download Siphon Desktop for macOS/Windows/Linux |
 | `/subscribe` | 6-tier subscription (Free to Enterprise) |
 | `/shard/[id]` | Individual shard profile + training chat |
@@ -162,7 +178,17 @@ curl -X POST http://localhost:3001/api/attest-all \
 
 **Subscriptions**: `GET /api/subscriptions`, `POST /api/subscriptions`, `POST /api/subscriptions/stake`
 
-**Cron**: `GET /api/cron/upkeep` (monthly identity upkeep), `GET /api/cron/decay` (shard stat decay)
+**Bounties**: `GET /api/bounties`, `POST /api/bounties`, `PATCH /api/bounties/[id]`, `GET /api/bounties/recommendations`
+
+**Cosmetics**: `GET /api/cosmetics`, `POST /api/cosmetics/purchase`, `GET /api/cosmetics/inventory`, `GET /api/cosmetics/[id]`
+
+**Analytics**: `GET /api/analytics/funnel`, `POST /api/analytics/funnel`
+
+**Operators**: `POST /api/operators/reputation`
+
+**Cron**: `GET /api/cron/upkeep` (monthly identity upkeep), `GET /api/cron/decay` (shard stat decay), `GET /api/cron/liquidate` (overdue loan liquidation)
+
+**Other**: `GET /api/health`, `GET /api/leaderboards`, `GET /api/seasons`, `POST /api/waitlist`, `POST /api/fusion`
 
 ## Keeper Node API
 
@@ -257,7 +283,7 @@ cargo tauri build
 - **Workspace (Factory)** — Agent task execution interface (Keeper+ tier)
 - **Arena** — Coming soon
 
-Cross-platform CI builds are available via GitHub Actions. Download the latest release from the [/download](https://siphon.gg/download) page.
+Cross-platform CI builds are available via GitHub Actions. Download the latest release from the [/download](https://siphon.legatia.solutions/download) page.
 
 ## Keeper CLI
 
@@ -281,7 +307,7 @@ siphon-keeper config init                               Create ~/.siphon/config.
 - **Keeper**: Rust 1.91, libp2p 0.54, alloy 1.x, axum, SQLite
 - **Inference**: OpenAI / Ollama (configurable)
 - **Payments**: Stripe (web2) + USDC staking (web3)
-- **Database**: SQLite via better-sqlite3
+- **Database**: SQLite via @libsql/client (local) / Turso (production)
 
 ## License
 
