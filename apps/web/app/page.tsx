@@ -149,19 +149,20 @@ function WaitlistForm({ source = "hero" }: { source?: string }) {
     if (!email.trim()) return;
     setStatus("loading");
     try {
-      const res = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), source }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
+      const sheetUrl = process.env.NEXT_PUBLIC_WAITLIST_URL;
+      if (!sheetUrl) {
         setStatus("error");
-        setMessage(data.error || "Something went wrong");
+        setMessage("Waitlist not configured");
         return;
       }
+      await fetch(sheetUrl, {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim(), source }),
+        mode: "no-cors",
+      });
+      // Google Apps Script returns opaque response with no-cors, so we assume success
       setStatus("success");
-      setMessage(data.message || "You're on the list");
+      setMessage("You're on the list");
     } catch {
       setStatus("error");
       setMessage("Network error — try again");
@@ -175,7 +176,7 @@ function WaitlistForm({ source = "hero" }: { source?: string }) {
   }
 
   return (
-    <form action="/api/waitlist" method="POST" onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto">
       <input
         type="email"
         required
