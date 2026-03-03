@@ -15,7 +15,7 @@ function getClientIp(request: NextRequest): string {
 }
 
 function isLandingOnlyDeployment(): boolean {
-  return process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+  return process.env.NEXT_PUBLIC_LANDING_ONLY === "1";
 }
 
 function isAllowedLandingPath(pathname: string): boolean {
@@ -33,7 +33,7 @@ function isAllowedLandingPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Vercel production deployment should only serve the marketing landing page.
+  // Optional marketing-only mode. Disabled by default so full app routes work in production.
   if (isLandingOnlyDeployment() && !isAllowedLandingPath(pathname)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
