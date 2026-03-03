@@ -93,37 +93,58 @@ export default function Dashboard() {
   const [funnelError, setFunnelError] = useState<string | null>(null);
   const [funnelSteps, setFunnelSteps] = useState<FunnelStep[]>([]);
 
+  const toArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
   useEffect(() => {
-    const ownerId = address || "anonymous";
-    fetch(`/api/shards?ownerId=${ownerId}`)
-      .then((r) => r.json())
+    if (!address) {
+      setShards([]);
+      setLoading(false);
+      return;
+    }
+
+    fetch(`/api/shards?ownerId=${address}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body?.error || "Failed to load shards");
+        }
+        return r.json();
+      })
       .then((data) => {
-        setShards(data);
+        setShards(toArray<Shard>(data));
         setLoading(false);
       })
-      .catch(() => {
-        setError("Failed to load shards");
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Failed to load shards";
+        setError(message);
         setLoading(false);
       });
 
-    if (address) {
-      fetch(`/api/battles?ownerId=${address}`)
-        .then((r) => r.json())
-        .then((battles) => {
-          const wins = battles.filter(
-            (b: any) =>
-              b.status === "completed" &&
-              ((b.winnerId === b.challenger?.shardId &&
-                b.challenger?.keeperId?.toLowerCase() === address.toLowerCase()) ||
-                (b.winnerId === b.defender?.shardId &&
-                  b.defender?.keeperId?.toLowerCase() === address.toLowerCase()))
-          ).length;
-          setBattlesWon(wins);
-        })
-        .catch(() => {
-          setError("Failed to load battle stats");
-        });
-    }
+    fetch(`/api/battles?ownerId=${address}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body?.error || "Failed to load battle stats");
+        }
+        return r.json();
+      })
+      .then((battles) => {
+        const list = toArray<any>(battles);
+        const wins = list.filter(
+          (b) =>
+            b.status === "completed" &&
+            ((b.winnerId === b.challenger?.shardId &&
+              b.challenger?.keeperId?.toLowerCase() === address.toLowerCase()) ||
+              (b.winnerId === b.defender?.shardId &&
+                b.defender?.keeperId?.toLowerCase() === address.toLowerCase()))
+        ).length;
+        setBattlesWon(wins);
+      })
+      .catch((err) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load battle stats";
+        setError(message);
+      });
   }, [address]);
 
   const nextAction = useMemo(() => {
@@ -146,12 +167,13 @@ export default function Dashboard() {
     if (!address) return;
     fetch("/api/bounties")
       .then((r) => r.json())
-      .then((rows: any[]) => {
+      .then((rows: unknown) => {
+        const list = toArray<any>(rows);
         const me = address.toLowerCase();
-        const delivered = rows.filter(
+        const delivered = list.filter(
           (b) => b.state === "Completed" && b.claimant?.toLowerCase() === me
         );
-        const posted = rows.filter(
+        const posted = list.filter(
           (b) => b.poster?.toLowerCase() === me
         );
         const earnings = delivered.reduce(
@@ -182,7 +204,7 @@ export default function Dashboard() {
         return r.json() as Promise<FunnelResponse>;
       })
       .then((data) => {
-        setFunnelSteps(data.funnel.steps ?? []);
+        setFunnelSteps(toArray<FunnelStep>(data?.funnel?.steps));
       })
       .catch((err) => {
         const message =

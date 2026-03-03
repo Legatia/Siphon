@@ -17,12 +17,17 @@ export default function DriftPage() {
   const [selectedShard, setSelectedShard] = useState<WildShard | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const toArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
   const loadShards = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/shards/wild");
-    const data = await res.json();
-    setWildShards(data);
+    try {
+      const res = await fetch("/api/shards/wild");
+      const data = await res.json();
+      setWildShards(toArray<WildShard>(data));
+    } catch {
+      setWildShards([]);
+    }
     setLoading(false);
   }, []);
 
