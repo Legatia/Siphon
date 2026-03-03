@@ -232,12 +232,12 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link href="/download">
+            <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Download className="h-4 w-4 mr-1.5" />
                 Desktop
               </Button>
-            </Link>
+            </a>
             {APP_LIVE ? (
               <a href={APP_URL}>
                 <Button size="sm">Launch App</Button>
@@ -286,12 +286,12 @@ export default function LandingPage() {
                   Launch App — Coming Soon
                 </Button>
               )}
-              <Link href="/download" className="w-full sm:w-auto">
+              <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="w-full">
                   <Download className="h-4 w-4 mr-2" />
                   Download Desktop
                 </Button>
-              </Link>
+              </a>
             </div>
 
             <p className="text-ghost/60 text-xs pt-2">
@@ -452,13 +452,13 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="shrink-0">
-                <Link href="/download">
+                <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer">
                   <Button size="lg">
                     <Download className="h-4 w-4 mr-2" />
                     Download Now
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
-                </Link>
+                </a>
               </div>
             </CardContent>
           </Card>
@@ -512,12 +512,12 @@ export default function LandingPage() {
                 Launch App — Coming Soon
               </Button>
             )}
-            <Link href="/download">
+            <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="lg">
                 <Download className="h-4 w-4 mr-2" />
                 Get the Desktop App
               </Button>
-            </Link>
+            </a>
           </div>
           <div className="pt-4">
             <p className="text-ghost text-xs mb-2">Or join the waitlist for launch updates</p>
@@ -534,7 +534,7 @@ export default function LandingPage() {
             <span>Siphon Protocol</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-ghost">
-            <Link href="/download" className="hover:text-foam transition-colors">Download</Link>
+            <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer" className="hover:text-foam transition-colors">Download</a>
             <a href="https://github.com/Legatia/Siphon" target="_blank" rel="noopener noreferrer" className="hover:text-foam transition-colors">GitHub</a>
           </div>
         </div>
