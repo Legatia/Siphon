@@ -198,13 +198,15 @@ export default function Dashboard() {
     fetch("/api/analytics/funnel?scope=me&days=30")
       .then(async (r) => {
         if (!r.ok) {
+          // Silently ignore auth errors — user may not have completed SIWE sign-in
+          if (r.status === 401 || r.status === 403) return null;
           const body = await r.json().catch(() => ({}));
           throw new Error(body?.error || "Failed to load funnel data");
         }
         return r.json() as Promise<FunnelResponse>;
       })
       .then((data) => {
-        setFunnelSteps(toArray<FunnelStep>(data?.funnel?.steps));
+        if (data) setFunnelSteps(toArray<FunnelStep>(data?.funnel?.steps));
       })
       .catch((err) => {
         const message =
