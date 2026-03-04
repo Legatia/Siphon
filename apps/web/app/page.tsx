@@ -34,8 +34,7 @@ import {
 // Config
 // ---------------------------------------------------------------------------
 
-const APP_URL = "https://siphon.legatia.solutions";
-const APP_LIVE = false; // flip to true when the app subdomain is live
+const DEMO_URL = "/dashboard";
 
 // ---------------------------------------------------------------------------
 // Data
@@ -238,16 +237,12 @@ export default function LandingPage() {
                 Desktop
               </Button>
             </a>
-            {APP_LIVE ? (
-              <a href={APP_URL}>
-                <Button size="sm">Launch App</Button>
-              </a>
-            ) : (
-              <Button disabled size="sm" className="opacity-50 cursor-not-allowed">
-                Launch App
-                <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0">Soon</Badge>
+            <Link href={DEMO_URL}>
+              <Button size="sm">
+                Try Demo
+                <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
               </Button>
-            )}
+            </Link>
           </div>
         </div>
       </header>
@@ -274,18 +269,12 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-              {APP_LIVE ? (
-                <a href={APP_URL} className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full">
-                    Launch App
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </a>
-              ) : (
-                <Button disabled size="lg" className="opacity-50 cursor-not-allowed w-full sm:w-auto">
-                  Launch App — Coming Soon
+              <Link href={DEMO_URL} className="w-full sm:w-auto">
+                <Button size="lg" className="w-full">
+                  Try Demo
+                  <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-              )}
+              </Link>
               <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="w-full">
                   <Download className="h-4 w-4 mr-2" />
@@ -295,7 +284,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-ghost/60 text-xs pt-2">
-              Testnet alpha. Mainnet launch on the horizon.
+              Live on Base Sepolia testnet. Try it now — no real funds needed.
             </p>
 
             {/* Waitlist */}
@@ -500,18 +489,12 @@ export default function LandingPage() {
             Capture your first shard. Train it. See what it becomes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            {APP_LIVE ? (
-              <a href={APP_URL}>
-                <Button size="lg">
-                  Launch App
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </a>
-            ) : (
-              <Button disabled size="lg" className="opacity-50 cursor-not-allowed">
-                Launch App — Coming Soon
+            <Link href={DEMO_URL}>
+              <Button size="lg">
+                Try Demo
+                <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
-            )}
+            </Link>
             <a href="https://github.com/Legatia/Siphon/releases/latest" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="lg">
                 <Download className="h-4 w-4 mr-2" />
