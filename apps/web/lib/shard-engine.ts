@@ -1,13 +1,13 @@
 import { getDb, shardToRow, rowToShard, dbGet, dbAll, dbRun } from "./db";
-import { spawnShard, addXp, type Shard } from "@siphon/core";
+import { spawnShard, addXp, type Shard, RARITY_XP_BONUS, RARITY_MAX_STAT, ShardRarity } from "@siphon/core";
 
 export async function spawnWildShard(): Promise<Shard> {
   const shard = spawnShard();
   const row = shardToRow(shard);
   const c = await getDb();
   await c.execute({
-    sql: `INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating)
-    VALUES (:id, :genome_hash, :type, :species, :name, :level, :xp, :owner_id, :is_wild, :avatar_json, :specialization, :personality, :stats_json, :created_at, :last_interaction, :decay_factor, :last_decay_check, :fused_from_json, :cosmetic_slots_json, :token_id, :elo_rating)`,
+    sql: `INSERT INTO shards (id, genome_hash, type, species, name, level, xp, owner_id, is_wild, avatar_json, specialization, personality, stats_json, created_at, last_interaction, decay_factor, last_decay_check, fused_from_json, cosmetic_slots_json, token_id, elo_rating, rarity)
+    VALUES (:id, :genome_hash, :type, :species, :name, :level, :xp, :owner_id, :is_wild, :avatar_json, :specialization, :personality, :stats_json, :created_at, :last_interaction, :decay_factor, :last_decay_check, :fused_from_json, :cosmetic_slots_json, :token_id, :elo_rating, :rarity)`,
     args: {
       id: row.id,
       genome_hash: row.genome_hash,
@@ -30,6 +30,7 @@ export async function spawnWildShard(): Promise<Shard> {
       cosmetic_slots_json: row.cosmetic_slots_json,
       token_id: row.token_id,
       elo_rating: row.elo_rating,
+      rarity: row.rarity,
     },
   });
 
@@ -84,7 +85,9 @@ export async function updateShardXp(shardId: string, xpAmount: number): Promise<
   const shard = await getShardById(shardId);
   if (!shard) return null;
 
-  const updated = addXp(shard, xpAmount);
+  const rarityBonus = RARITY_XP_BONUS[shard.rarity as ShardRarity] ?? 1.0;
+  const boostedXp = Math.round(xpAmount * rarityBonus);
+  const updated = addXp(shard, boostedXp);
   await dbRun(
     "UPDATE shards SET level = ?, xp = ?, last_interaction = ? WHERE id = ?",
     updated.level,
@@ -121,14 +124,15 @@ export async function improveShardStats(shardId: string): Promise<Shard | null> 
   // 40% chance to gain +1 primary stat, 20% chance to gain +1 random secondary stat
   const stats = { ...shard.stats };
   const statKeys = Object.keys(stats) as (keyof typeof stats)[];
+  const maxStat = RARITY_MAX_STAT[shard.rarity as ShardRarity] ?? 100;
 
   if (Math.random() < 0.4) {
-    stats[primaryStat] = Math.min(stats[primaryStat] + 1, 115);
+    stats[primaryStat] = Math.min(stats[primaryStat] + 1, maxStat);
   }
 
   if (Math.random() < 0.2) {
     const secondaryKey = statKeys[Math.floor(Math.random() * statKeys.length)];
-    stats[secondaryKey] = Math.min(stats[secondaryKey] + 1, 115);
+    stats[secondaryKey] = Math.min(stats[secondaryKey] + 1, maxStat);
   }
 
   // Only update if something changed

@@ -62,6 +62,28 @@ export enum SubscriptionTier {
   Enterprise = "enterprise",
 }
 
+export enum ShardRarity {
+  Common = "common",
+  Rare = "rare",
+  Epic = "epic",
+  Legendary = "legendary",
+  Mythic = "mythic",
+}
+
+export enum SummonTier {
+  Common = 0,
+  Rare = 1,
+  Elite = 2,
+  Legendary = 3,
+}
+
+export interface SummonResult {
+  shard: Shard;
+  rarity: ShardRarity;
+  tier: SummonTier;
+  isGuaranteed: boolean;
+}
+
 export enum MessageType {
   System = "system",
   User = "user",
@@ -128,6 +150,7 @@ export interface Shard {
   cosmeticSlots: CosmeticSlots;
   tokenId: string | null;
   eloRating: number;
+  rarity: ShardRarity;
 }
 
 export interface ShardStats {

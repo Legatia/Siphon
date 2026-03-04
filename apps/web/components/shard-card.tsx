@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type Shard, ShardType, getShardTypeName, xpForLevel } from "@siphon/core";
+import { type Shard, ShardType, ShardRarity, getShardTypeName, xpForLevel, RARITY_COLORS } from "@siphon/core";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -86,6 +86,18 @@ export function ShardCard({
             {decayWarning && (
               <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                 {Math.floor((shard.decayFactor ?? 1) * 100)}%
+              </Badge>
+            )}
+            {shard.rarity && shard.rarity !== ShardRarity.Common && (
+              <Badge
+                className="text-[10px] px-1.5 py-0"
+                style={{
+                  backgroundColor: RARITY_COLORS[shard.rarity as ShardRarity] + "20",
+                  color: RARITY_COLORS[shard.rarity as ShardRarity],
+                  borderColor: RARITY_COLORS[shard.rarity as ShardRarity] + "50",
+                }}
+              >
+                {(shard.rarity as string).charAt(0).toUpperCase() + (shard.rarity as string).slice(1)}
               </Badge>
             )}
             <Badge variant={typeVariantMap[shard.type]}>{typeName}</Badge>

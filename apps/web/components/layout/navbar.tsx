@@ -6,11 +6,12 @@ import { useState } from "react";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
 import { LENDING_ENABLED } from "@/lib/features";
-import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X, Trophy, Binoculars, CalendarRange, Medal, BarChart3 } from "lucide-react";
+import { Waves, Compass, Store, Swords, Home, Combine, ShoppingBag, Landmark, Target, Download, Crown, Menu, X, Trophy, Binoculars, CalendarRange, Medal, BarChart3, Sparkles } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/drift", label: "Drift", icon: Compass },
+  { href: "/summon", label: "Summon", icon: Sparkles },
   { href: "/shelter", label: "Shelter", icon: Store },
   { href: "/battle", label: "Battles", icon: Swords },
   { href: "/leaderboards", label: "Ranks", icon: Trophy },

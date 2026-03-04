@@ -4,6 +4,7 @@ import {
   type AvatarParams,
   type ShardStats,
   ShardType,
+  ShardRarity,
   Specialization,
 } from "./types";
 import {
@@ -41,7 +42,7 @@ function avatarFromHash(hash: `0x${string}`, type: ShardType): AvatarParams {
   return { primaryColor, secondaryColor, glowIntensity, size, pattern };
 }
 
-function statsFromHash(hash: `0x${string}`, type: ShardType): ShardStats {
+export function statsFromHash(hash: `0x${string}`, type: ShardType): ShardStats {
   const bytes = hash.slice(2);
   const base = (i: number) =>
     Math.floor((parseInt(bytes.slice(18 + i * 2, 20 + i * 2), 16) / 255) * 50) + 50;
@@ -160,6 +161,7 @@ export function spawnShard(seed?: string, entropy?: string): Shard {
     cosmeticSlots: { aura: null, trail: null, crown: null, emblem: null },
     tokenId: null,
     eloRating: 1200,
+    rarity: ShardRarity.Common,
   };
 }
 

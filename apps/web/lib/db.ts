@@ -407,6 +407,43 @@ async function migrateSchema(client: Client) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_achievements_unique ON achievements_unlocked(owner_id, achievement_key);
   `);
 
+  // --- Summon system tables ---
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS summon_pulls (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      tier INTEGER NOT NULL,
+      rarity TEXT NOT NULL,
+      shard_id TEXT NOT NULL,
+      cost_eth REAL NOT NULL DEFAULT 0,
+      tx_hash TEXT,
+      batch_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS summon_pity (
+      user_id TEXT PRIMARY KEY,
+      total_pulls INTEGER NOT NULL DEFAULT 0,
+      pulls_since_rare INTEGER NOT NULL DEFAULT 0,
+      pulls_since_epic INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS summon_daily (
+      user_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      free_pulls INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_summon_pulls_user ON summon_pulls(user_id);
+    CREATE INDEX IF NOT EXISTS idx_summon_pulls_batch ON summon_pulls(batch_id);
+  `);
+
+  // Add rarity column to shards
+  if (!(await hasColumn(client, "shards", "rarity")))
+    await client.execute("ALTER TABLE shards ADD COLUMN rarity TEXT DEFAULT 'common'");
+
   if (!(await hasColumn(client, "bounties", "execution_status")))
     await client.execute("ALTER TABLE bounties ADD COLUMN execution_status TEXT");
   if (!(await hasColumn(client, "bounties", "execution_result")))
@@ -440,6 +477,7 @@ export function shardToRow(shard: import("@siphon/core").Shard) {
     cosmetic_slots_json: JSON.stringify(shard.cosmeticSlots),
     token_id: shard.tokenId,
     elo_rating: shard.eloRating,
+    rarity: shard.rarity ?? "common",
   };
 }
 
@@ -468,5 +506,6 @@ export function rowToShard(row: any): import("@siphon/core").Shard {
       : { aura: null, trail: null, crown: null, emblem: null },
     tokenId: row.token_id ?? null,
     eloRating: row.elo_rating ?? 1200,
+    rarity: row.rarity ?? "common",
   };
 }

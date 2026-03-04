@@ -89,5 +89,6 @@ export function performFusion(a: Shard, b: Shard): Shard {
     cosmeticSlots: { aura: null, trail: null, crown: null, emblem: null },
     tokenId: null,
     eloRating: Math.floor((a.eloRating + b.eloRating) / 2),
+    rarity: a.rarity,
   };
 }

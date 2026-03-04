@@ -977,6 +977,40 @@ export const BOUNTY_BOARD_ABI = [
   },
 ] as const;
 
+// --- SummonEscrow ---
+export const SUMMON_ESCROW_ABI = [
+  {
+    type: "function",
+    name: "purchaseSummon",
+    inputs: [
+      { name: "summonId", type: "bytes32" },
+      { name: "tier", type: "uint8" },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "tierCosts",
+    inputs: [{ name: "tier", type: "uint8" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "SummonPurchased",
+    inputs: [
+      { name: "summonId", type: "bytes32", indexed: true },
+      { name: "buyer", type: "address", indexed: true },
+      { name: "tier", type: "uint8", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+export const SUMMON_ESCROW_ADDRESS =
+  readAddressEnv("NEXT_PUBLIC_SUMMON_ESCROW_ADDRESS");
+
 export const publicClient = createPublicClient({
   chain: baseSepolia,
   transport: http(),

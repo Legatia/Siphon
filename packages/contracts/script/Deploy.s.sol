@@ -11,6 +11,7 @@ import "../src/SubscriptionStaking.sol";
 import "../src/ShardMarketplace.sol";
 import "../src/SwarmRegistry.sol";
 import "../src/BountyBoard.sol";
+import "../src/SummonEscrow.sol";
 
 contract Deploy is Script {
     struct DeployedAddresses {
@@ -23,6 +24,7 @@ contract Deploy is Script {
         address marketplace;
         address swarmRegistry;
         address bountyBoard;
+        address summonEscrow;
     }
 
     function run() external {
@@ -76,6 +78,10 @@ contract Deploy is Script {
         deployed.bountyBoard = address(new BountyBoard(deployer));
         console.log("BountyBoard deployed at:", deployed.bountyBoard);
 
+        // 11. SummonEscrow (Rare=0.005 ETH, Elite=0.02 ETH, Legendary=0.05 ETH)
+        deployed.summonEscrow = address(new SummonEscrow(0.005 ether, 0.02 ether, 0.05 ether));
+        console.log("SummonEscrow deployed at:", deployed.summonEscrow);
+
         // --- Post-deploy setup ---
         if (deployLending) {
             // Approve the deployer as a keeper for attestations
@@ -114,5 +120,6 @@ contract Deploy is Script {
         console.log("NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS=", deployed.marketplace);
         console.log("NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS=", deployed.swarmRegistry);
         console.log("NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS=", deployed.bountyBoard);
+        console.log("NEXT_PUBLIC_SUMMON_ESCROW_ADDRESS=", deployed.summonEscrow);
     }
 }

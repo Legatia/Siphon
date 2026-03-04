@@ -33,8 +33,9 @@ siphon-protocol/
 | **ShardMarketplace** | List/buy/cancel shard sales with 2.5% fee |
 | **SwarmRegistry** | Team composition (2-5 shards per swarm) |
 | **BountyBoard** | ETH escrow for task bounties |
+| **SummonEscrow** | ETH escrow for gacha/summon purchases |
 
-157 Forge tests + 56 Rust tests passing. Core launch scope uses registry/staking/battle/marketplace/swarm/bounty/subscription contracts; lending contracts can be deployed later.
+177 Forge tests + 56 Rust tests passing. Core launch scope uses registry/staking/battle/marketplace/swarm/bounty/subscription/summon contracts; lending contracts can be deployed later.
 
 ## Loan Protocol
 
@@ -54,6 +55,23 @@ Agent identity follows a two-phase flow:
 1. **Mint**: API returns genome hash (202) → client calls external ERC-8004 `mintAgent(genomeHash)` on-chain → confirms with txHash + tokenId
 2. **Validate**: API returns validation data (202) → client calls `addValidation(tokenId, result, evidence)` on-chain → confirms with txHash
 3. **Reputation**: `GET /api/identity/[tokenId]/reputation` reads directly from the configured external ERC-8004 contract
+
+## Summon / Gacha System
+
+Shards can be acquired two ways: **free capture** in The Drift (solve a puzzle), or **premium summoning** with ETH for better rarity odds.
+
+**Rarity tiers:** Common, Rare, Epic, Legendary, Mythic — each with stat multipliers, XP bonuses, and higher stat caps.
+
+| Summon Tier | Cost | Drop Rates |
+|-------------|------|------------|
+| Common | Free (1/day) | 100% Common |
+| Rare | 0.005 ETH | 60% Common, 35% Rare, 5% Epic |
+| Elite | 0.02 ETH | 50% Rare, 40% Epic, 10% Legendary |
+| Legendary | 0.05 ETH | 60% Epic, 35% Legendary, 5% Mythic |
+
+- **Multi-pull discounts**: 5x = 10% off, 10x = 15% off
+- **Pity system**: Guaranteed Rare+ after 10 pulls, Epic+ after 50 pulls
+- **Rarity bonuses**: Stat multiplier (1.0x–1.6x), XP bonus (+10%–+50%), higher stat caps (100–130)
 
 ## Shard Types
 
@@ -151,6 +169,7 @@ curl -X POST http://localhost:3001/api/attest-all \
 | `/` | Landing page + waitlist |
 | `/dashboard` | Owned shards, quick actions |
 | `/drift` | Explore wild shards, capture challenges |
+| `/summon` | Gacha summon chamber — 4 tiers, multi-pull, pity tracker |
 | `/shelter` | Community shard repository |
 | `/battle` | 4 battle modes (Debate, Solve, Riddle, Creative) |
 | `/fusion` | Combine two shards into a new one |
@@ -169,6 +188,8 @@ curl -X POST http://localhost:3001/api/attest-all \
 ## API Routes
 
 **Shards**: `GET /api/shards`, `POST /api/shards`, `GET /api/shards/wild`, `POST /api/shards/capture`, `GET /api/shards/[id]`, `POST /api/shards/[id]/train`
+
+**Summon**: `POST /api/shards/summon` (perform summon pulls), `GET /api/shards/summon/pity` (pity state + free pull status)
 
 **Battles**: `GET /api/battles`, `POST /api/battles`, `POST /api/battles/[id]/settle`, `GET /api/battles/matchmaking`
 
