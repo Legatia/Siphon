@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDb, getDbRuntimeInfo } from "@/lib/db";
 
 export async function GET() {
   const keys = [
@@ -17,20 +18,33 @@ export async function GET() {
     "LLM_BASE_URL",
     "LLM_MODEL",
     "TURSO_DB_URL",
+    "TURSO_AUTH_TOKEN",
     "SESSION_SECRET",
   ];
 
-  const result: Record<string, string> = {};
+  const env: Record<string, string> = {};
   for (const key of keys) {
     const val = process.env[key];
     if (!val) {
-      result[key] = "MISSING";
+      env[key] = "MISSING";
     } else if (key.includes("SECRET") || key.includes("TOKEN") || key.includes("API_KEY")) {
-      result[key] = val.slice(0, 6) + "...";
+      env[key] = val.slice(0, 6) + "...";
     } else {
-      result[key] = val;
+      env[key] = val;
     }
   }
 
-  return NextResponse.json(result);
+  // Test database connection
+  let dbStatus: string;
+  let dbInfo = getDbRuntimeInfo();
+  try {
+    const db = await getDb();
+    const rs = await db.execute("SELECT COUNT(*) as cnt FROM shards");
+    const cnt = rs.rows[0]?.cnt ?? 0;
+    dbStatus = `OK (${cnt} shards, mode=${dbInfo.mode})`;
+  } catch (err) {
+    dbStatus = `ERROR: ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  return NextResponse.json({ env, db: { status: dbStatus, url: dbInfo.url, mode: dbInfo.mode } });
 }

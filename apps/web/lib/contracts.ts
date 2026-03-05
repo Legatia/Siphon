@@ -605,41 +605,37 @@ export const LOAN_VAULT_ABI = [
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const ZERO_EVM_ADDRESS = ZERO_ADDRESS as `0x${string}`;
 
-function readAddressEnv(envKey: string): `0x${string}` {
-  const value = process.env[envKey] as `0x${string}` | undefined;
+/**
+ * Read a contract address, falling back to the zero address.
+ * NOTE: Next.js only inlines NEXT_PUBLIC_* vars when accessed as a
+ * static literal (process.env.NEXT_PUBLIC_FOO). The caller must pass
+ * the already-resolved value, NOT a dynamic key.
+ */
+function toAddress(value: string | undefined, label: string): `0x${string}` {
   if (value && value !== ZERO_ADDRESS) {
-    return value;
+    return value as `0x${string}`;
   }
-
-  const msg = `${envKey} is not configured. On-chain actions for this contract will fail until a real address is set.`;
-  const warned = (globalThis as { __siphonAddressWarned?: Set<string> }).__siphonAddressWarned
-    ?? new Set<string>();
-  (globalThis as { __siphonAddressWarned?: Set<string> }).__siphonAddressWarned = warned;
-  if (warned.has(envKey)) {
-    return ZERO_ADDRESS as `0x${string}`;
-  }
-  warned.add(envKey);
-
-  if (process.env.NODE_ENV === "production") {
-    console.error(msg);
-  } else {
-    console.warn(msg);
+  if (typeof window === "undefined" && process.env.NODE_ENV !== "production") {
+    console.warn(`${label} is not configured. On-chain actions for this contract will fail until a real address is set.`);
   }
   return ZERO_ADDRESS as `0x${string}`;
 }
 
+// Static process.env references so Next.js inlines them into the client bundle
 export const SHARD_REGISTRY_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SHARD_REGISTRY_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SHARD_REGISTRY_ADDRESS, "SHARD_REGISTRY");
 
 export const KEEPER_STAKING_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_KEEPER_STAKING_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_KEEPER_STAKING_ADDRESS, "KEEPER_STAKING");
 
 export const BATTLE_SETTLEMENT_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_BATTLE_SETTLEMENT_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_BATTLE_SETTLEMENT_ADDRESS, "BATTLE_SETTLEMENT");
 
 export const ERC8004_IDENTITY_ADDRESS =
-  (process.env.NEXT_PUBLIC_ERC8004_IDENTITY_ADDRESS as `0x${string}` | undefined)
-  ?? readAddressEnv("NEXT_PUBLIC_SIPHON_IDENTITY_ADDRESS");
+  toAddress(
+    process.env.NEXT_PUBLIC_ERC8004_IDENTITY_ADDRESS ?? process.env.NEXT_PUBLIC_SIPHON_IDENTITY_ADDRESS,
+    "SIPHON_IDENTITY"
+  );
 
 // Backward-compatible export name used in existing UI routes/components.
 export const SIPHON_IDENTITY_ADDRESS = ERC8004_IDENTITY_ADDRESS;
@@ -647,24 +643,24 @@ export const ERC8004_IDENTITY_CONFIGURED =
   ERC8004_IDENTITY_ADDRESS.toLowerCase() !== ZERO_ADDRESS;
 
 export const SHARD_VALUATION_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SHARD_VALUATION_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SHARD_VALUATION_ADDRESS, "SHARD_VALUATION");
 
 export const LOAN_VAULT_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_LOAN_VAULT_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_LOAN_VAULT_ADDRESS, "LOAN_VAULT");
 export const LOAN_VAULT_CONFIGURED =
   LOAN_VAULT_ADDRESS.toLowerCase() !== ZERO_ADDRESS;
 
 export const SUBSCRIPTION_STAKING_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SUBSCRIPTION_STAKING_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SUBSCRIPTION_STAKING_ADDRESS, "SUBSCRIPTION_STAKING");
 
 export const SHARD_MARKETPLACE_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SHARD_MARKETPLACE_ADDRESS, "SHARD_MARKETPLACE");
 
 export const SWARM_REGISTRY_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SWARM_REGISTRY_ADDRESS, "SWARM_REGISTRY");
 
 export const BOUNTY_BOARD_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_BOUNTY_BOARD_ADDRESS, "BOUNTY_BOARD");
 
 // USDC on Base Sepolia
 export const USDC_ADDRESS =
@@ -1009,7 +1005,7 @@ export const SUMMON_ESCROW_ABI = [
 ] as const;
 
 export const SUMMON_ESCROW_ADDRESS =
-  readAddressEnv("NEXT_PUBLIC_SUMMON_ESCROW_ADDRESS");
+  toAddress(process.env.NEXT_PUBLIC_SUMMON_ESCROW_ADDRESS, "SUMMON_ESCROW");
 
 export const publicClient = createPublicClient({
   chain: baseSepolia,
