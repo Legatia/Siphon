@@ -126,16 +126,16 @@ export default function BountiesPage() {
   useEffect(() => {
     if (!address) return;
     fetch(`/api/shards?ownerId=${address}`)
-      .then((r) => r.json())
-      .then((data) => setMyShards(data))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setMyShards(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [address]);
 
   const fetchBounties = useCallback(() => {
     fetch("/api/bounties")
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        setBounties(data);
+        setBounties(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -151,10 +151,11 @@ export default function BountiesPage() {
       return;
     }
     fetch("/api/bounties/recommendations")
-      .then((r) => r.json())
-      .then((rows: RecommendationRow[]) => {
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        const list = Array.isArray(rows) ? (rows as RecommendationRow[]) : [];
         const next: Record<string, RecommendationRow> = {};
-        for (const row of rows) next[row.bountyId] = row;
+        for (const row of list) next[row.bountyId] = row;
         setRecommendations(next);
       })
       .catch(() => {});
@@ -177,10 +178,11 @@ export default function BountiesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ addresses }),
     })
-      .then((r) => r.json())
-      .then((rows: ReputationRow[]) => {
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        const list = Array.isArray(rows) ? (rows as ReputationRow[]) : [];
         const map: Record<string, ReputationRow> = {};
-        for (const row of rows) map[row.address.toLowerCase()] = row;
+        for (const row of list) map[row.address.toLowerCase()] = row;
         setReputationByAddress(map);
       })
       .catch(() => {});

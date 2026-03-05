@@ -660,24 +660,24 @@ export default function LoansPage() {
     if (!LENDING_ENABLED) return;
 
     fetch("/api/loans?view=listings")
-      .then((r) => r.json())
-      .then(setListings)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setListings(Array.isArray(d) ? d : []))
       .catch(() => {});
 
     fetch("/api/loans?view=active")
-      .then((r) => r.json())
-      .then(setActiveLoans)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setActiveLoans(Array.isArray(d) ? d : []))
       .catch(() => {});
 
     if (address) {
       fetch(`/api/loans?borrower=${address}`)
-        .then((r) => r.json())
-        .then(setMyLoans)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((d) => setMyLoans(Array.isArray(d) ? d : []))
         .catch(() => {});
 
       fetch(`/api/shards?ownerId=${address}`)
-        .then((r) => r.json())
-        .then(setMyShards)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((d) => setMyShards(Array.isArray(d) ? d : []))
         .catch(() => {});
     }
   }

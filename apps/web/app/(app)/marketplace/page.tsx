@@ -95,9 +95,9 @@ export default function MarketplacePage() {
     if (rarityFilter !== "all") params.set("rarity", rarityFilter);
 
     fetch(`/api/cosmetics?${params}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        setCosmetics(data);
+        setCosmetics(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -111,10 +111,11 @@ export default function MarketplacePage() {
     if (maxPrice) params.set("maxPrice", maxPrice);
     params.set("sort", sortBy);
     fetch(`/api/marketplace?${params.toString()}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
+        const list = Array.isArray(data) ? data : [];
         setListings(
-          data.map((row: any) => ({
+          list.map((row: any) => ({
             shardId: row.shard_id,
             seller: row.seller,
             price: row.price,
@@ -135,17 +136,19 @@ export default function MarketplacePage() {
     if (!address) return;
 
     fetch(`/api/cosmetics/inventory?ownerId=${address}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
+        const list = Array.isArray(data) ? data : [];
         const ids = new Set<string>(
-          data.map((item: { id: string }) => item.id)
+          list.map((item: { id: string }) => item.id)
         );
         setOwnedIds(ids);
-      });
+      })
+      .catch(() => {});
 
     fetch(`/api/shards?ownerId=${address}`)
-      .then((r) => r.json())
-      .then((data) => setMyShards(data))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setMyShards(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [address]);
 

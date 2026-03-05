@@ -166,7 +166,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!address) return;
     fetch("/api/bounties")
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((rows: unknown) => {
         const list = toArray<any>(rows);
         const me = address.toLowerCase();

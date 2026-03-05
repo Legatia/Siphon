@@ -23,7 +23,7 @@ export default function DriftPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/shards/wild");
-      const data = await res.json();
+      const data = res.ok ? await res.json() : [];
       setWildShards(toArray<WildShard>(data));
     } catch {
       setWildShards([]);
