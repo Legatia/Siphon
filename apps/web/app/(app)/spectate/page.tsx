@@ -21,7 +21,8 @@ export default function SpectatePage() {
     const load = async () => {
       const res = await fetch("/api/battles/spectate");
       if (!res.ok) return;
-      setBattles(await res.json());
+      const data = await res.json();
+      setBattles(Array.isArray(data) ? data : []);
     };
     void load();
     const interval = setInterval(load, 5000);

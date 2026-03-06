@@ -31,9 +31,9 @@ export default function ShelterPage() {
     if (typeFilter) params.set("type", typeFilter);
 
     fetch(`/api/shelter?${params}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        setShards(data);
+        setShards(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => {

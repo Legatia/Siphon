@@ -45,9 +45,9 @@ export default function FusionPage() {
     }
     setLoading(true);
     fetch(`/api/shards?ownerId=${address}`)
-      .then((r) => r.json())
-      .then((data: Shard[]) => {
-        setShards(data);
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: unknown) => {
+        setShards(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => {

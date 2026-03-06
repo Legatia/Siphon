@@ -180,17 +180,19 @@ export default function SummonPage() {
       }
 
       const data = await res.json();
-      setResults(data.results);
+      const summonResults: SummonResult[] = Array.isArray(data?.results) ? data.results : [];
+      setResults(summonResults);
       setShowReveal(true);
+      const pityData = data?.pity ?? {};
       setPity({
         ...pity!,
-        ...data.pity,
-        pullsUntilRareGuarantee: Math.max(0, PITY_RARE_THRESHOLD - data.pity.pullsSinceRare),
-        pullsUntilEpicGuarantee: Math.max(0, PITY_EPIC_THRESHOLD - data.pity.pullsSinceEpic),
+        ...pityData,
+        pullsUntilRareGuarantee: Math.max(0, PITY_RARE_THRESHOLD - (pityData.pullsSinceRare ?? 0)),
+        pullsUntilEpicGuarantee: Math.max(0, PITY_EPIC_THRESHOLD - (pityData.pullsSinceEpic ?? 0)),
         freePullUsedToday: tier === SummonTier.Common ? true : pity?.freePullUsedToday ?? false,
       });
 
-      const rarities = data.results.map((r: SummonResult) => r.rarity);
+      const rarities = summonResults.map((r: SummonResult) => r.rarity);
       const bestRarity = rarities.includes(ShardRarity.Mythic)
         ? "Mythic"
         : rarities.includes(ShardRarity.Legendary)

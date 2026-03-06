@@ -117,9 +117,9 @@ export default function BattlePage() {
         fetch(`/api/battles/matchmaking?ownerId=${address}`),
       ]);
 
-      if (shardsRes.ok) setShards(await shardsRes.json());
-      if (battlesRes.ok) setBattles(await battlesRes.json());
-      if (queueRes.ok) setQueueEntries(await queueRes.json());
+      if (shardsRes.ok) { const d = await shardsRes.json(); setShards(Array.isArray(d) ? d : []); }
+      if (battlesRes.ok) { const d = await battlesRes.json(); setBattles(Array.isArray(d) ? d : []); }
+      if (queueRes.ok) { const d = await queueRes.json(); setQueueEntries(Array.isArray(d) ? d : []); }
     } catch (err) {
       toast.error("Failed to load battle data");
       console.error("Failed to fetch battle data:", err);
