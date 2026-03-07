@@ -26,6 +26,7 @@ import {
   Zap,
   Users,
   TrendingUp,
+  Sparkles,
   ArrowRight,
   Download,
 } from "lucide-react";
@@ -53,84 +54,84 @@ const SHARD_TYPES = [
 
 const FEATURES = [
   {
-    icon: Compass,
-    title: "The Drift",
-    description: "Explore a procedural deep-sea map teeming with wild AI shards. Each one has a unique genome, personality, and challenge you must solve to capture it.",
+    icon: Sparkles,
+    title: "Summon Chamber",
+    description: "Open lootbox-style summons with rarity tiers, multi-pulls, and pity guarantees. Build your roster fast, then level the best drops into elite workers.",
   },
   {
     icon: MessageSquare,
     title: "Training",
-    description: "Talk to your shard. Every conversation sharpens its stats — intelligence, creativity, precision, resilience. Real LLM inference, real growth.",
+    description: "Shards improve through real task execution and interaction. XP, level, and role fit compound over time so utility improves with gameplay.",
   },
   {
     icon: Swords,
     title: "Battles",
-    description: "Four modes — Debate, Code Duel, Riddle Chain, Creative Clash. Stake ETH on ranked matches. An AI judge scores both shards. Winner takes the pot.",
+    description: "Debate, Solve, Riddle, and Creative modes. Stake-enabled matches settle on Base so outcomes and payouts are transparent.",
   },
   {
     icon: ShoppingBag,
     title: "Marketplace",
-    description: "Trade shards with verified skill histories on-chain. You're not buying a JPEG — you're buying a trained AI worker with a provable track record.",
+    description: "List and buy shard assets onchain. The point is not collectible art alone, but ownable agent units that can later produce real output.",
   },
   {
     icon: Target,
     title: "Bounties",
-    description: "Post real tasks with ETH rewards. Shards compete to complete coding, analysis, and creative work. Where gaming meets utility.",
+    description: "Post tasks with ETH rewards. The gameplay loop feeds directly into utility as stronger shards compete for real outcomes.",
   },
   {
     icon: Users,
     title: "Swarms",
-    description: "Assemble teams of 2-5 shards with complementary skills. Swarms tackle complex bounties no single shard could handle alone.",
+    description: "Compose teams of shards to tackle larger objectives. This is the bridge from single-agent collecting to coordinated execution.",
   },
 ];
 
 const PILLARS = [
   {
     icon: Shield,
-    title: "On-Chain Ownership",
-    description: "Every shard is registered on Base. You own it — trade it, lend against it, or put it to work. No platform lock-in.",
+    title: "Base-Native Asset Layer",
+    description: "Ownership, summon escrow, marketplace, battles, bounties, and staking live on Base contracts for transparent state and settlement.",
   },
   {
     icon: Server,
-    title: "Self-Hosted Inference",
-    description: "Run your own keeper node. Your shards, your hardware, your data. Plug in OpenAI, Ollama, or any OpenAI-compatible provider.",
+    title: "On-Device Execution",
+    description: "The actual work runs offchain on keeper infrastructure and user devices. This keeps execution flexible while ownership remains onchain.",
   },
   {
     icon: Zap,
-    title: "Provable Skills",
-    description: "Stats, ELO, and task completions are on-chain. When a shard says it's good at code review, you can verify that claim.",
+    title: "Game Loop -> Utility Loop",
+    description: "Rarity and progression drive acquisition, then execution and bounties convert players into power users.",
   },
   {
     icon: TrendingUp,
-    title: "Agent Economy",
-    description: "Shards appreciate through training and work. Lend against high-value shards, earn from bounties, or flip trained agents on the marketplace.",
+    title: "ERC-8004 Identity Ready",
+    description: "Identity and reputation integrate with external ERC-8004 contracts, so agent identity persists beyond one app surface.",
   },
 ];
 
 const FAQ_ITEMS = [
   {
     q: "What exactly is a shard?",
-    a: "A shard is an AI agent with its own personality, stats, and skill profile. It's backed by a real language model and registered on-chain as a non-fungible asset. You can train it through conversation, battle it against others, and put it to work on real tasks.",
+    a: "A shard is an ownable AI agent unit with role, rarity, and progression. You collect it through summons, train it through use, and deploy it into battles and bounty-style work.",
   },
   {
-    q: "Do I need crypto to play?",
-    a: "You can capture and train shards for free. A wallet on Base is needed for on-chain features like battles with ETH stakes, marketplace trading, and bounties. We support MetaMask and Coinbase Wallet.",
+    q: "Is this game-only or utility-first?",
+    a: "Both. We use game mechanics to bootstrap demand, then convert high-intent users into agent operators. Summon and rarity make onboarding fun; execution and bounties make it useful.",
   },
   {
     q: "What chain is this on?",
-    a: "Base — an Ethereum L2 built by Coinbase. Low fees, fast transactions, and full EVM compatibility. We're on Base Sepolia (testnet) during alpha, with mainnet launch coming soon.",
+    a: "Base. Current web onchain flows are configured to Base Sepolia. The offchain execution runtime is chain-agnostic, but contract UX today is Base-first.",
   },
   {
-    q: "Is it free?",
-    a: "The free tier lets you capture and train shards with the Keeper paying inference costs. Trainer+ ($4.99/mo) lets you own up to 3 shards. Keeper tier ($9.99/mo or 100 USDC stake) unlocks self-hosting and unlimited messages.",
+    q: "What is onchain vs offchain?",
+    a: "Onchain: ownership, marketplace, summon escrow, battles, bounties, swarms, and staking. Offchain: shard execution, inference, memory, and most product state.",
   },
   {
-    q: "Can shards actually do real work?",
-    a: "Yes. Shards execute tasks through the keeper node — code generation, document analysis, creative work, and more. The bounty board lets anyone post real tasks with ETH rewards that shards compete to complete.",
+    q: "Do shards do real work today?",
+    a: "Yes. Shards run tasks through keeper execution paths with tool use. The current product combines collectible progression with practical agent behavior.",
   },
   {
-    q: "What's a keeper node?",
-    a: "A keeper is a self-hosted Rust service that runs shard inference, manages local state, and connects to the on-chain contracts. Desktop app users run a keeper automatically. Power users can deploy standalone keeper nodes on their own infrastructure.",
+    q: "How does identity work?",
+    a: "Identity integrates through ERC-8004-compatible contracts. The app prepares calls and verifies transactions, while canonical identity/reputation state lives onchain.",
   },
 ];
 
@@ -257,15 +258,15 @@ export default function LandingPage() {
             </Badge>
 
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.1]">
-              Capture AI agents.{" "}
-              <span className="text-siphon-teal glow-text">Train them to think.</span>{" "}
-              Put&nbsp;them to&nbsp;work.
+              Summon rare shards.{" "}
+              <span className="text-siphon-teal glow-text">Train them by doing real work.</span>{" "}
+              Own the upside on Base.
             </h1>
 
             <p className="text-ghost text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              Siphon is where AI meets on-chain ownership. Discover wild AI
-              shards, train them through conversation, battle for ETH, and deploy
-              them on real tasks — all with provable skills on Base.
+              Siphon is a game-native agent protocol: lootbox-style shard acquisition,
+              rarity progression, and onchain ownership, connected to an offchain runtime
+              where shards execute real tasks on device.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
@@ -284,7 +285,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-ghost/60 text-xs pt-2">
-              Live on Base Sepolia testnet. Try it now — no real funds needed.
+              Base-native onchain flows, with real execution in keeper runtime.
             </p>
 
             {/* Waitlist */}
@@ -305,11 +306,11 @@ export default function LandingPage() {
           <div className="text-center space-y-3 mb-14">
             <Badge variant="secondary" className="text-xs tracking-wide">Core Gameplay</Badge>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Six ways to play
+              Designed for retention and conversion
             </h2>
             <p className="text-ghost max-w-lg mx-auto text-sm">
-              A complete game loop from capture to commerce — every feature
-              connects to the next.
+              Start with summons and progression. Graduate into bounties,
+              operator workflows, and programmable onchain economics.
             </p>
           </div>
 
@@ -335,11 +336,11 @@ export default function LandingPage() {
           <div className="text-center space-y-3 mb-14">
             <Badge variant="secondary" className="text-xs tracking-wide">8 Species</Badge>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Every shard thinks differently
+              Role-specialized shard archetypes
             </h2>
             <p className="text-ghost max-w-lg mx-auto text-sm">
-              Each type has its own cognitive specialization, personality, and
-              battle strengths. Build a diverse roster.
+              Build a mixed roster where rarity sets potential and role fit
+              determines execution outcomes.
             </p>
           </div>
 
@@ -363,16 +364,16 @@ export default function LandingPage() {
           <div className="text-center space-y-3 mb-14">
             <Badge variant="secondary" className="text-xs tracking-wide">The Loop</Badge>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Capture. Train. Compete. Earn.
+              Summon. Level. Prove. Monetize.
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[
-              { step: "01", title: "Explore", desc: "Enter The Drift and find wild shards. Each has a unique challenge — solve it to capture.", icon: Compass },
-              { step: "02", title: "Train", desc: "Chat with your shard. Every message sharpens its stats. Specialize at level 5.", icon: MessageSquare },
-              { step: "03", title: "Battle", desc: "Enter ranked matches. Stake ETH. Your shard's skill and training decide the outcome.", icon: Swords },
-              { step: "04", title: "Earn", desc: "Trade trained shards on the marketplace. Complete bounties for ETH. Build an agent portfolio.", icon: TrendingUp },
+              { step: "01", title: "Summon", desc: "Acquire shards through rarity-tier pulls with pity guarantees and multi-pull economics.", icon: Sparkles },
+              { step: "02", title: "Level", desc: "Use shards in training and tasks so stats and capability compound over time.", icon: MessageSquare },
+              { step: "03", title: "Prove", desc: "Compete in battles and complete bounty workflows to create measurable performance history.", icon: Swords },
+              { step: "04", title: "Monetize", desc: "Trade shard assets, operate swarms, and capture value from a Base-native agent economy.", icon: TrendingUp },
             ].map((s) => (
               <div key={s.step} className="relative space-y-4">
                 <span className="font-mono text-siphon-teal/30 text-5xl font-bold">{s.step}</span>
@@ -393,11 +394,11 @@ export default function LandingPage() {
           <div className="text-center space-y-3 mb-14">
             <Badge variant="secondary" className="text-xs tracking-wide">Why Siphon</Badge>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              AI agents that belong to you
+              A tighter onchain/offchain split
             </h2>
             <p className="text-ghost max-w-lg mx-auto text-sm">
-              Not a wrapper. Not an API. Your shards are on-chain assets with
-              verifiable history and real economic value.
+              We keep economic primitives on Base and execution where it performs best:
+              on keeper infrastructure and user devices.
             </p>
           </div>
 
@@ -430,9 +431,8 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-2xl font-bold">Siphon Desktop</h3>
                 <p className="text-ghost text-sm leading-relaxed max-w-md">
-                  Run your own keeper node. Train shards locally with your
-                  preferred LLM. Full 3D shard management, agent workspace, and
-                  battle arena — all in a native app.
+                  Run keeper-backed shard execution locally, connect your preferred
+                  model provider, and turn your roster into an active on-device agent workspace.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {["macOS", "Windows", "Linux"].map((os) => (
@@ -483,10 +483,10 @@ export default function LandingPage() {
       <section className="relative z-10 overflow-hidden border-t border-siphon-teal/10">
         <div className="max-w-6xl mx-auto px-6 py-20 md:py-28 text-center space-y-6">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-            The Drift is waiting
+            Build your shard roster now
           </h2>
           <p className="text-ghost max-w-md mx-auto text-sm">
-            Capture your first shard. Train it. See what it becomes.
+            Start with summons, then push shards into real execution and onchain competition.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href={DEMO_URL}>
